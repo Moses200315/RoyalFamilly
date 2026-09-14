@@ -1,12 +1,9 @@
 FROM php:8.2-apache
 
-# Weka ServerName localhost kuzuia Apache warnings
+# Weka ServerName kuzuia Apache warnings
 RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
-# Rekebisha port ya Apache ili isikilize port inayotolewa na Render
-RUN sed -i 's/80/${PORT:-80}/g' /etc/apache2/ports.conf /etc/apache2/sites-available/*.conf
-
-# Wezesha Extensions za MySQL PDO na mysqli
+# Wezesha extensions za MySQL PDO na mysqli
 RUN docker-php-ext-install pdo pdo_mysql mysqli
 
 # Wezesha Apache modules zote zinazohitajika na .htaccess
