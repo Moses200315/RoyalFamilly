@@ -10,14 +10,12 @@ Options -Indexes
 
 # Protect configuration files
 <FilesMatch "^(config\.php|\.htaccess)$">
-    Order allow,deny
-    Deny from all
+    Require all denied
 </FilesMatch>
 
 # Protect sensitive directories
 <FilesMatch "\.(log|sql|bak|old)$">
-    Order allow,deny
-    Deny from all
+    Require all denied
 </FilesMatch>
 
 # Enable URL rewriting (if needed in future)
@@ -44,11 +42,9 @@ AddDefaultCharset UTF-8
     ExpiresByType image/gif "access plus 1 year"
 </IfModule>
 
-# Protect against clickjacking
-Header always append X-Frame-Options SAMEORIGIN
-
-# Enable XSS protection
-Header always set X-XSS-Protection "1; mode=block"
-
-# Prevent MIME type sniffing
-Header always set X-Content-Type-Options nosniff
+# Security Headers (Checked with module)
+<IfModule mod_headers.c>
+    Header always append X-Frame-Options SAMEORIGIN
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set X-Content-Type-Options nosniff
+</IfModule>
