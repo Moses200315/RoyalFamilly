@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Read and execute schema file (Angalia majina tofauti ya faili la SQL)
-        $schema_file = _DIR_ . '/database/schema.sql';
+        $schema_file = __DIR__ . '/database/schema.sql';
         if (!file_exists($schema_file)) {
             $schema_file = _DIR_ . '/database.sql';
         }
