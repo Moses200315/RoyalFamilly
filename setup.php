@@ -9,10 +9,11 @@
  */
 
 // Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'royalfamily_db');
+define('DB_HOST', 'mysql-ad07bdc-kaayamus-d33d.f.aivencloud.com');
+define('DB_USER', 'avnadmin');
+define('DB_PASS', 'AVNS_OBNh_oT5oV-C2a7wVAz');
+define('DB_NAME', 'defaultdb');
+define('DB_PORT', 10997);
 
 $message = '';
 $messageType = '';
