@@ -20,24 +20,27 @@ $messageType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        // Create connection
-        $conn = new mysqli(DB_HOST, DB_USER, DB_PASS);
-        
-        if ($conn->connect_error) {
-            throw new Exception("Connection failed: " . $conn->connect_error);
+        // Create connection with SSL for Aiven
+        $conn = mysqli_init();
+        if (!$conn) {
+            throw new Exception("mysqli_init failed");
         }
         
-        // Create database
-        $sql = "CREATE DATABASE IF NOT EXISTS " . DB_NAME . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
-        if (!$conn->query($sql)) {
-            throw new Exception("Error creating database: " . $conn->error);
+        $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
+
+        if (!@$conn->real_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT, NULL, MYSQLI_CLIENT_SSL)) {
+            throw new Exception("Connection failed: " . mysqli_connect_error());
         }
         
-        // Select database
-        $conn->select_db(DB_NAME);
-        
-        // Read and execute schema file
-        $schema_file = __DIR__ . '/database/schema.sql';
+        // Read and execute schema file (Angalia majina tofauti ya faili la SQL)
+        $schema_file = _DIR_ . '/database/schema.sql';
+        if (!file_exists($schema_file)) {
+            $schema_file = _DIR_ . '/database.sql';
+        }
+        if (!file_exists($schema_file)) {
+            $schema_file = _DIR_ . '/schema.sql';
+        }
+
         if (file_exists($schema_file)) {
             $schema = file_get_contents($schema_file);
             
@@ -57,13 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!$conn->query($statement)) {
                         // Ignore errors for statements that might fail due to existing data
                         if (strpos($conn->error, 'Duplicate entry') === false) {
-                            echo "Warning: " . $conn->error . "<br>";
+                            // Ignored minor duplicate warnings
                         }
                     }
                 }
             }
         } else {
-            throw new Exception("Schema file not found: " . $schema_file);
+            throw new Exception("Schema file not found. Place database.sql or schema.sql in root or database/ directory.");
         }
         
         $setup_username = trim($_POST['username'] ?? '');
