@@ -5,7 +5,7 @@
  */
 
 // Test database connection
-$conn = new mysqli(define('mysql-ad07bdc-kaayamus-d33d.f.aivencloud.com','avnadmin','AVNS_OBNh_oT5oV-C2a7wVAz','defaultdb');
+$conn = new mysqli('mysql-ad07bdc-kaayamus-d33d.f.aivencloud.com','avnadmin','AVNS_OBNh_oT5oV-C2a7wVAz','defaultdb');
 
 if ($conn->connect_error) {
     die("<h3>Database Connection Failed</h3>
