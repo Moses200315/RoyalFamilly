@@ -74,7 +74,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-require_once _DIR_ . '/../includes/i18n.php';
+require_once __DIR__ . '/../includes/i18n.php';
 
 /**
  * Timezone Configuration
