@@ -1,36 +1,34 @@
 <?php
-/**
- * ============================================
- * RoyalFamily Water Delivery System
- * Database Configuration File
- * Version: 1.0
- * Description: Establishes MySQL database connection
- * ============================================
- */
 
 // Database configuration constants
 define('DB_HOST', 'mysql-ad07bdc-kaayamus-d33d.f.aivencloud.com');
 define('DB_USER', 'avnadmin');
 define('DB_PASS', 'AVNS_OBNh_oT5oV-C2a7wVAz');
 define('DB_NAME', 'defaultdb');
+define('DB_PORT', 10997);
 
 /**
  * Database Connection Function
- * Creates and returns a MySQLi connection object
+ * Creates and returns a MySQLi connection object with SSL
  * 
  * @return mysqli Database connection object
- * @throws Exception If connection fails
  */
 function getDbConnection() {
-    // Create MySQLi connection
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    $conn = mysqli_init();
     
-    // Check connection
-    if ($conn->connect_error) {
-        die("Database connection failed: " . $conn->connect_error);
+    if (!$conn) {
+        die("mysqli_init failed");
+    }
+
+    // SSL inahitajika na Aiven Cloud
+    $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
+
+    // Muunganisho unaoangazia Port na SSL
+    if (!@$conn->real_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT, NULL, MYSQLI_CLIENT_SSL)) {
+        die("Database connection failed: " . mysqli_connect_error());
     }
     
-    // Set character set to UTF-8 for proper encoding
+    // Set character set to UTF-8
     $conn->set_charset("utf8mb4");
     
     return $conn;
@@ -60,7 +58,6 @@ function ensureServiceIntervalDaysColumn($conn) {
 
 /**
  * Global database connection variable
- * Used throughout the application
  */
 $mysqli = getDbConnection();
 ensureUserLanguageColumn($mysqli);
@@ -69,21 +66,18 @@ ensureServiceIntervalDaysColumn($mysqli);
 
 /**
  * Session Configuration
- * Sets secure session parameters
- * Must be called before session_start()
  */
 if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_httponly', 1);
     ini_set('session.use_only_cookies', 1);
-    ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+    ini_set('session.cookie_secure', 0);
     session_start();
 }
 
-require_once __DIR__ . '/../includes/i18n.php';
+require_once _DIR_ . '/../includes/i18n.php';
 
 /**
  * Timezone Configuration
- * Sets default timezone to Africa/Dar_es_Salaam
  */
 date_default_timezone_set('Africa/Dar_es_Salaam');
 
@@ -124,7 +118,7 @@ function calculateNextDueDate($lastServiceDate, $intervalDays, $override = null)
 
 function generateNextSequentialCode($mysqli, $table, $column, $prefix, $digits, $minimumValue, $maximumValue) {
     $pattern = '^' . preg_quote($prefix, '/') . '[0-9]+$';
-    $sql = "SELECT `$column` FROM `$table` WHERE `$column` REGEXP ?";
+    $sql = "SELECT $column FROM $table WHERE $column REGEXP ?";
     $stmt = $mysqli->prepare($sql);
     $stmt->bind_param('s', $pattern);
     $stmt->execute();
