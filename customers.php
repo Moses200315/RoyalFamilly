@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    
+
     // Update customer
     if ($action === 'update') {
         $customer_id = intval($_POST['customer_id']);
@@ -78,7 +78,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim($_POST['email'] ?? '');
         $address = trim($_POST['address'] ?? '');
         $service_interval_days = filter_input(INPUT_POST, 'service_interval_days', FILTER_VALIDATE_INT);
-        $status = $_POST['status'] ?? '';
+        
+        // Validate status input (fixes potential invalid enum values)
+        $status = $_POST['status'] ?? 'active';
+        if (!in_array($status, ['active', 'inactive'], true)) {
+            $status = 'active';
+        }
         
         // Validation
         if (empty($full_name) || empty($phone1) || $service_interval_days === false || $service_interval_days < 1) {
@@ -95,15 +100,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         status = ?
                         WHERE id = ?";
             $stmt = $mysqli->prepare($sql);
-            $stmt->bind_param('ssssssis', $full_name, $phone1, $phone2, $email, $address, $service_interval_days, $status, $customer_id);
+            
+            // Fixed type format string to 'sssssssi'
+            $stmt->bind_param('sssssssi', $full_name, $phone1, $phone2, $email, $address, $service_interval_days, $status, $customer_id);
 
-                if ($stmt->execute()) {
-                    $message = 'Customer updated successfully!';
-                    $messageType = 'success';
-                } else {
-                    $message = 'Error updating customer: ' . $mysqli->error;
-                    $messageType = 'danger';
-                }
+            if ($stmt->execute()) {
+                $message = 'Customer updated successfully!';
+                $messageType = 'success';
+            } else {
+                $message = 'Error updating customer: ' . $mysqli->error;
+                $messageType = 'danger';
+            }
         }
     }
     
