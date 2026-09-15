@@ -201,8 +201,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 SELECT 
                     COUNT(DISTINCT sr.customer_id) as total_customers_served,
                     COUNT(sr.id) as total_deliveries,
-                    SUM(sr.gallons_delivered) as total_gallons,
-                    SUM(sr.total_amount) as total_sales,
+                    COALESCE(SUM(sr.gallons_delivered), 0) as total_gallons,
+                    COALESCE(SUM(sr.total_amount), 0) as total_sales,
                     s.staff_code,
                     s.full_name as staff_name
                 FROM service_records sr
@@ -226,8 +226,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 SELECT 
                     COUNT(DISTINCT customer_id) as total_customers_served,
                     COUNT(id) as total_deliveries,
-                    SUM(gallons_delivered) as total_gallons,
-                    SUM(total_amount) as total_sales
+                    COALESCE(SUM(gallons_delivered), 0) as total_gallons,
+                    COALESCE(SUM(total_amount), 0) as total_sales
                 FROM service_records
                 WHERE DATE(service_date_time) BETWEEN ? AND ?
             ";
@@ -251,8 +251,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     s.phone,
                     s.email,
                     COUNT(sr.id) as total_deliveries,
-                    SUM(sr.gallons_delivered) as total_gallons,
-                    SUM(sr.total_amount) as total_sales,
+                    COALESCE(SUM(sr.gallons_delivered), 0) as total_gallons,
+                    COALESCE(SUM(sr.total_amount), 0) as total_sales,
                     COUNT(DISTINCT sr.customer_id) as unique_customers
                 FROM staff s
                 LEFT JOIN service_records sr ON s.id = sr.staff_id 
@@ -446,7 +446,7 @@ if ($report_type === 'next_due') {
                     <i class="bi bi-gear-fill"></i>
                 </a>
                 <span class="navbar-text me-3">
-                    <i class="bi bi-person-circle"></i> <?php echo htmlspecialchars($_SESSION['full_name']); ?>
+                    <i class="bi bi-person-circle"></i> <?php echo htmlspecialchars($_SESSION['full_name'] ?? ''); ?>
                 </span>
                 <a href="logout.php" class="btn btn-outline-danger btn-sm">
                     <i class="bi bi-box-arrow-right"></i> Logout
@@ -545,25 +545,25 @@ if ($report_type === 'next_due') {
                                 <div class="row">
                                     <div class="col-md-3">
                                         <div class="summary-card">
-                                            <div class="summary-value"><?php echo number_format($overall_totals['total_customers_served']); ?></div>
+                                            <div class="summary-value"><?php echo number_format((int)($overall_totals['total_customers_served'] ?? 0)); ?></div>
                                             <div class="summary-label">Customers Served</div>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
                                         <div class="summary-card">
-                                            <div class="summary-value"><?php echo number_format($overall_totals['total_deliveries']); ?></div>
+                                            <div class="summary-value"><?php echo number_format((int)($overall_totals['total_deliveries'] ?? 0)); ?></div>
                                             <div class="summary-label">Total Deliveries</div>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
                                         <div class="summary-card">
-                                            <div class="summary-value"><?php echo number_format((int) $overall_totals['total_gallons']); ?></div>
+                                            <div class="summary-value"><?php echo number_format((int)($overall_totals['total_gallons'] ?? 0)); ?></div>
                                             <div class="summary-label">Total Gallons</div>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
                                         <div class="summary-card">
-                                            <div class="summary-value"><?php echo number_format($overall_totals['total_sales']); ?></div>
+                                            <div class="summary-value"><?php echo number_format((float)($overall_totals['total_sales'] ?? 0), 2); ?></div>
                                             <div class="summary-label">Total Sales (TZS)</div>
                                         </div>
                                     </div>
@@ -588,10 +588,10 @@ if ($report_type === 'next_due') {
                                                     <tr>
                                                         <td><?php echo htmlspecialchars($staff['staff_code']); ?></td>
                                                         <td><?php echo htmlspecialchars($staff['staff_name']); ?></td>
-                                                        <td><?php echo number_format($staff['total_deliveries']); ?></td>
-                                                        <td><?php echo number_format($staff['total_customers_served']); ?></td>
-                                                        <td><?php echo number_format((int) $staff['total_gallons']); ?></td>
-                                                        <td><?php echo number_format($staff['total_sales']); ?></td>
+                                                        <td><?php echo number_format((int)($staff['total_deliveries'] ?? 0)); ?></td>
+                                                        <td><?php echo number_format((int)($staff['total_customers_served'] ?? 0)); ?></td>
+                                                        <td><?php echo number_format((int)($staff['total_gallons'] ?? 0)); ?></td>
+                                                        <td><?php echo number_format((float)($staff['total_sales'] ?? 0), 2); ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
@@ -632,9 +632,9 @@ if ($report_type === 'next_due') {
                                                         <strong><?php echo htmlspecialchars($record['staff_code']); ?></strong><br>
                                                         <small><?php echo htmlspecialchars($record['staff_name']); ?></small>
                                                     </td>
-                                                    <td><?php echo number_format((int) $record['gallons_delivered']); ?></td>
-                                                    <td><?php echo number_format($record['price_per_gallon'], 2); ?></td>
-                                                    <td><strong><?php echo number_format($record['total_amount'], 2); ?></strong></td>
+                                                    <td><?php echo number_format((int)($record['gallons_delivered'] ?? 0)); ?></td>
+                                                    <td><?php echo number_format((float)($record['price_per_gallon'] ?? 0), 2); ?></td>
+                                                    <td><strong><?php echo number_format((float)($record['total_amount'] ?? 0), 2); ?></strong></td>
                                                     <td><?php echo htmlspecialchars($record['recorded_by_name']); ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -743,9 +743,9 @@ if ($report_type === 'next_due') {
                                                     <td><?php echo htmlspecialchars($staff['staff_name']); ?></td>
                                                     <td><?php echo htmlspecialchars($staff['phone']); ?></td>
                                                     <td><?php echo htmlspecialchars($staff['email'] ?: '-'); ?></td>
-                                                    <td><?php echo number_format($staff['total_deliveries']); ?></td>
-                                                    <td><?php echo number_format((int) $staff['total_gallons']); ?></td>
-                                                    <td><strong><?php echo number_format($staff['total_sales']); ?></strong></td>
+                                                    <td><?php echo number_format((int)($staff['total_deliveries'] ?? 0)); ?></td>
+                                                    <td><?php echo number_format((int)($staff['total_gallons'] ?? 0)); ?></td>
+                                                    <td><strong><?php echo number_format((float)($staff['total_sales'] ?? 0), 2); ?></strong></td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -763,25 +763,25 @@ if ($report_type === 'next_due') {
                                 <div class="row">
                                     <div class="col-md-3">
                                         <div class="summary-card">
-                                            <div class="summary-value"><?php echo number_format($overall_totals['total_customers_served']); ?></div>
+                                            <div class="summary-value"><?php echo number_format((int)($overall_totals['total_customers_served'] ?? 0)); ?></div>
                                             <div class="summary-label">Customers Served</div>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
                                         <div class="summary-card">
-                                            <div class="summary-value"><?php echo number_format($overall_totals['total_deliveries']); ?></div>
+                                            <div class="summary-value"><?php echo number_format((int)($overall_totals['total_deliveries'] ?? 0)); ?></div>
                                             <div class="summary-label">Total Deliveries</div>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
                                         <div class="summary-card">
-                                            <div class="summary-value"><?php echo number_format((int) $overall_totals['total_gallons']); ?></div>
+                                            <div class="summary-value"><?php echo number_format((int)($overall_totals['total_gallons'] ?? 0)); ?></div>
                                             <div class="summary-label">Total Gallons</div>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
                                         <div class="summary-card">
-                                            <div class="summary-value"><?php echo number_format($overall_totals['total_sales']); ?></div>
+                                            <div class="summary-value"><?php echo number_format((float)($overall_totals['total_sales'] ?? 0), 2); ?></div>
                                             <div class="summary-label">Total Sales (TZS)</div>
                                         </div>
                                     </div>
@@ -806,10 +806,10 @@ if ($report_type === 'next_due') {
                                                     <tr>
                                                         <td><strong><?php echo htmlspecialchars($sale['staff_code']); ?></strong></td>
                                                         <td><?php echo htmlspecialchars($sale['staff_name']); ?></td>
-                                                        <td><?php echo number_format($sale['total_deliveries']); ?></td>
-                                                        <td><?php echo number_format($sale['total_customers_served']); ?></td>
-                                                        <td><?php echo number_format((int) $sale['total_gallons']); ?></td>
-                                                        <td><strong><?php echo number_format($sale['total_sales']); ?></strong></td>
+                                                        <td><?php echo number_format((int)($sale['total_deliveries'] ?? 0)); ?></td>
+                                                        <td><?php echo number_format((int)($sale['total_customers_served'] ?? 0)); ?></td>
+                                                        <td><?php echo number_format((int)($sale['total_gallons'] ?? 0)); ?></td>
+                                                        <td><strong><?php echo number_format((float)($sale['total_sales'] ?? 0), 2); ?></strong></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
