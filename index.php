@@ -8,17 +8,12 @@
  * ============================================
  */
 
-// Start session
-session_start();
+require_once 'config/config.php';
 
-// Redirect to dashboard if already logged in
 if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
     exit();
 }
-
-// Include configuration
-require_once 'config/config.php';
 
 // Initialize variables
 $error_message = '';
