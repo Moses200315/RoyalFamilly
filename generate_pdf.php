@@ -23,6 +23,7 @@ require_once 'fpdf/fpdf.php';
 $start_date = isset($_GET['start_date']) ? trim($mysqli->real_escape_string($_GET['start_date'])) : date('Y-m-01');
 $end_date = isset($_GET['end_date']) ? trim($mysqli->real_escape_string($_GET['end_date'])) : date('Y-m-d');
 $report_type = isset($_GET['report_type']) ? $_GET['report_type'] : 'all';
+$customer_id = isset($_GET['customer_id']) ? intval($_GET['customer_id']) : 0;
 
 // Next-due PDFs are forward-looking and must never include dates before today.
 if ($report_type === 'next_due') {
@@ -54,6 +55,7 @@ if ($report_type === 'all' || $report_type === 'served') {
             sr.gallons_delivered,
             sr.price_per_gallon,
             sr.total_amount,
+            sr.delivery_type,
             c.customer_code,
             c.full_name as customer_name,
             c.phone1,
@@ -80,7 +82,7 @@ if ($report_type === 'all' || $report_type === 'served') {
             COUNT(DISTINCT sr.customer_id) as total_customers_served,
             COUNT(sr.id) as total_deliveries,
             SUM(sr.gallons_delivered) as total_gallons,
-            SUM(sr.total_amount) as total_sales,
+            SUM(CASE WHEN COALESCE(sr.delivery_type, 'normal') = 'offer' THEN 0 ELSE sr.total_amount END) as total_sales,
             s.staff_code,
             s.full_name as staff_name
         FROM service_records sr
@@ -102,7 +104,7 @@ if ($report_type === 'all' || $report_type === 'served') {
             COUNT(DISTINCT customer_id) as total_customers_served,
             COUNT(id) as total_deliveries,
             SUM(gallons_delivered) as total_gallons,
-            SUM(total_amount) as total_sales
+            SUM(CASE WHEN COALESCE(delivery_type, 'normal') = 'offer' THEN 0 ELSE total_amount END) as total_sales
         FROM service_records
         WHERE DATE(service_date_time) BETWEEN '$start_date' AND '$end_date'
     ";
@@ -122,7 +124,7 @@ if ($report_type === 'all' || $report_type === 'staff_performance') {
             s.email,
             COUNT(sr.id) as total_deliveries,
             SUM(sr.gallons_delivered) as total_gallons,
-            SUM(sr.total_amount) as total_sales,
+            SUM(CASE WHEN COALESCE(sr.delivery_type, 'normal') = 'offer' THEN 0 ELSE sr.total_amount END) as total_sales,
             COUNT(DISTINCT sr.customer_id) as unique_customers
         FROM staff s
         LEFT JOIN service_records sr ON s.id = sr.staff_id 
@@ -368,6 +370,54 @@ class RoyalFamilyPDF extends FPDF {
     }
 }
 
+if ($customer_id > 0) {
+    $customer_stmt = $mysqli->prepare('SELECT * FROM customers WHERE id = ? LIMIT 1');
+    $customer_stmt->bind_param('i', $customer_id);
+    $customer_stmt->execute();
+    $customer_profile = $customer_stmt->get_result()->fetch_assoc();
+    $customer_history = [];
+    if ($customer_profile) {
+        $history_stmt = $mysqli->prepare('SELECT sr.*, s.full_name AS staff_name FROM service_records sr INNER JOIN staff s ON sr.staff_id = s.id WHERE sr.customer_id = ? ORDER BY sr.service_date_time DESC');
+        $history_stmt->bind_param('i', $customer_id);
+        $history_stmt->execute();
+        $history_result = $history_stmt->get_result();
+        while ($row = $history_result->fetch_assoc()) {
+            $customer_history[] = $row;
+        }
+
+        $pdf = new RoyalFamilyPDF();
+        $pdf->AliasNbPages();
+        $pdf->AddPage('L');
+        $pdf->SectionHeader('Customer Report', '');
+        $pdf->SetFont('Arial', 'B', 12);
+        $pdf->Cell(0, 8, 'Customer: ' . $customer_profile['full_name'], 0, 1);
+        $pdf->SetFont('Arial', '', 10);
+        $pdf->Cell(0, 6, 'Contact: ' . $customer_profile['phone1'] . ($customer_profile['phone2'] ? ' / ' . $customer_profile['phone2'] : ''), 0, 1);
+        if (!empty($customer_profile['address'])) {
+            $pdf->Cell(0, 6, 'Address: ' . $customer_profile['address'], 0, 1);
+        }
+        $pdf->Ln(4);
+        $widths = [32, 50, 22, 28, 22, 35, 50];
+        $pdf->TableHeader(['Date', 'Customer', 'Gallons', 'Price/Gal', 'Type', 'Amount Paid', 'Staff'], $widths);
+        $pdf->SetFont('Arial', '', 8);
+        foreach ($customer_history as $record) {
+            $type = deliveryTypeOf($record);
+            $pdf->WrappedRow([
+                date('d M Y H:i', strtotime($record['service_date_time'])),
+                $customer_profile['full_name'],
+                number_format((int) $record['gallons_delivered']),
+                number_format((float) $record['price_per_gallon'], 2),
+                $type === 'offer' ? 'Offer' : 'Normal',
+                $type === 'offer' ? 'Offer / Free' : number_format(paidAmountForRecord($record), 2),
+                $record['staff_name']
+            ], $widths);
+        }
+        $pdf_filename = 'customer_report_' . preg_replace('/[^a-z0-9]+/i', '_', $customer_profile['full_name']) . '.pdf';
+        $pdf->Output('D', $pdf_filename);
+        exit();
+    }
+}
+
 // Create PDF
 $pdf = new RoyalFamilyPDF();
 $pdf->AliasNbPages();
@@ -419,20 +469,20 @@ if ($report_type === 'all' || $report_type === 'served') {
         $pdf->SectionHeader('Served Customers (' . count($served_customers) . ')', 'v'); // Checkmark icon
         
         // Table header
-        $served_widths = [30, 25, 25, 20, 25, 30, 45];
-        $served_headers = ['Date/Time', 'Customer', 'Staff', 'Gallons', 'Price/Gal', 'Total (TZS)', 'Recorded By'];
+        $served_widths = [32, 50, 40, 20, 25, 30, 40];
+        $served_headers = ['Date/Time', 'Customer', 'Staff', 'Gallons', 'Price/Gal', 'Amount Paid', 'Recorded By'];
         $pdf->TableHeader($served_headers, $served_widths);
         
-        // Table data
         $pdf->SetFont('Arial', '', 8);
         foreach ($served_customers as $record) {
+            $type = deliveryTypeOf($record);
             $pdf->WrappedRow([
                 date('d M H:i', strtotime($record['service_date_time'])),
-                $record['customer_code'],
-                $record['staff_code'],
+                customerDisplayName($record),
+                $record['staff_name'],
                 number_format((int) $record['gallons_delivered']),
                 number_format($record['price_per_gallon'], 2),
-                number_format($record['total_amount'], 2),
+                $type === 'offer' ? 'Offer / Free' : number_format(paidAmountForRecord($record), 2),
                 $record['recorded_by_name']
             ], $served_widths);
         }
@@ -448,14 +498,13 @@ if ($report_type === 'all' || $report_type === 'due' || $report_type === 'next_d
         $pdf->SectionHeader(($report_type === 'next_due' ? 'Next Due' : 'Due Customers') . ' (' . count($due_customers) . ')', '#'); // Calendar icon
         
         // Table header
-        $due_widths = [25, 45, 32, 90, 35, 35];
-        $due_headers = ['Code', 'Name', 'Phone', 'Address', 'Next Due', 'Last Staff'];
+        $due_widths = [55, 32, 90, 35, 35];
+        $due_headers = ['Customer', 'Phone', 'Address', 'Next Due', 'Last Staff'];
         $pdf->TableHeader($due_headers, $due_widths);
         
-        // Table data
         $pdf->SetFont('Arial', '', 8);
         foreach ($due_customers as $customer) {
-            $pdf->WrappedRow([$customer['customer_code'], $customer['full_name'], $customer['phone1'], $customer['address'] ?: '-', date('d M H:i', strtotime($customer['next_due_date'])), $customer['last_staff_name'] ?: '-'], $due_widths);
+            $pdf->WrappedRow([$customer['full_name'], $customer['phone1'], $customer['address'] ?: '-', date('d M H:i', strtotime($customer['next_due_date'])), $customer['last_staff_name'] ?: '-'], $due_widths);
         }
     }
 }
@@ -469,15 +518,13 @@ if ($report_type === 'all' || $report_type === 'overdue') {
         $pdf->SectionHeader('Overdue Customers (' . count($overdue_customers) . ')', '!'); // Warning icon
         
         // Table header
-        $overdue_widths = [25, 40, 30, 30, 30, 35];
-        $overdue_headers = ['Code', 'Name', 'Phone', 'Was Due', 'Overdue', 'Last Staff'];
+        $overdue_widths = [50, 30, 30, 35, 40];
+        $overdue_headers = ['Customer', 'Phone', 'Was Due', 'Overdue', 'Last Staff'];
         $pdf->TableHeader($overdue_headers, $overdue_widths);
         
-        // Table data
         $pdf->SetFont('Arial', '', 8);
         foreach ($overdue_customers as $customer) {
             $pdf->WrappedRow([
-                $customer['customer_code'],
                 $customer['full_name'],
                 $customer['phone1'],
                 date('d M H:i', strtotime($customer['next_due_date'])),
