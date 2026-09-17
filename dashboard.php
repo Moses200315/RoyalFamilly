@@ -625,7 +625,7 @@ $overdue_count = count($overdue);
                                 <div class="customer-item reminder" data-status="reminder">
                                     <span class="status-label status-pending">Pending delivery</span>
                                     <div class="customer-name">
-                                        <?php echo htmlspecialchars($customer['customer_code'] . ' - ' . $customer['full_name']); ?>
+                                        <?php echo htmlspecialchars($customer['full_name']); ?>
                                     </div>
                                     <div class="customer-details">
                                         <i class="bi bi-telephone-fill me-1"></i> <?php echo htmlspecialchars($customer['phone1']); ?>
@@ -663,7 +663,7 @@ $overdue_count = count($overdue);
                                 <div class="customer-item due" data-status="due">
                                     <span class="status-label status-pending">Pending delivery</span>
                                     <div class="customer-name">
-                                        <?php echo htmlspecialchars($customer['customer_code'] . ' - ' . $customer['full_name']); ?>
+                                        <?php echo htmlspecialchars($customer['full_name']); ?>
                                     </div>
                                     <div class="customer-details">
                                         <i class="bi bi-telephone-fill me-1"></i> <?php echo htmlspecialchars($customer['phone1']); ?>
@@ -701,7 +701,7 @@ $overdue_count = count($overdue);
                                 <div class="customer-item overdue" data-status="overdue">
                                     <span class="status-label status-overdue">Overdue - not delivered</span>
                                     <div class="customer-name">
-                                        <?php echo htmlspecialchars($customer['customer_code'] . ' - ' . $customer['full_name']); ?>
+                                        <?php echo htmlspecialchars($customer['full_name']); ?>
                                     </div>
                                     <div class="customer-details">
                                         <i class="bi bi-telephone-fill me-1"></i> <?php echo htmlspecialchars($customer['phone1']); ?>
@@ -729,9 +729,12 @@ $overdue_count = count($overdue);
         <div class="row">
             <div class="col-12 mb-4">
                 <div class="card monitoring-card">
-                    <div class="card-header header-due d-flex justify-content-between align-items-center">
+                    <div class="card-header header-due d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <span><i class="bi bi-check2-circle me-2"></i>Delivered Today</span>
-                        <span class="badge bg-light text-dark"><?php echo count($delivered_today); ?></span>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="text" class="form-control form-control-sm" data-live-search="delivered" placeholder="Search delivered customers..." autocomplete="off" style="min-width: 220px;">
+                            <span class="badge bg-light text-dark"><?php echo count($delivered_today); ?></span>
+                        </div>
                     </div>
                     <div class="card-body">
                         <?php if (empty($delivered_today)): ?>
@@ -742,14 +745,14 @@ $overdue_count = count($overdue);
                         <?php else: ?>
                             <div class="row">
                                 <?php foreach ($delivered_today as $customer): ?>
-                                    <div class="col-lg-4 col-md-6 mb-3">
+                                    <div class="col-lg-4 col-md-6 mb-3" data-search-row="delivered" data-search="<?php echo htmlspecialchars(strtolower($customer['full_name'] . ' ' . $customer['customer_code'] . ' ' . $customer['phone1'] . ' ' . ($customer['last_staff_name'] ?? ''))); ?>">
                                         <div class="customer-item delivered h-100" data-status="delivered">
                                             <span class="status-label status-delivered">Delivered</span>
                                             <?php if (!empty($customer['late_duration'])): ?>
                                                 <span class="status-label status-late">Late by <?php echo htmlspecialchars($customer['late_duration']); ?></span>
                                             <?php endif; ?>
                                             <div class="customer-name">
-                                                <?php echo htmlspecialchars($customer['customer_code'] . ' - ' . $customer['full_name']); ?>
+                                                <?php echo htmlspecialchars($customer['full_name']); ?>
                                             </div>
                                             <div class="customer-details">
                                                 <i class="bi bi-clock-fill me-1"></i> Delivered at:
