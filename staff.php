@@ -139,12 +139,14 @@ $sql = "SELECT s.*,
         FROM staff s";
 
 if (!empty($searchTerm)) {
-    $sql .= " WHERE s.full_name LIKE ? 
-              OR s.staff_code LIKE ? 
-              OR s.phone LIKE ?";
+    $sql .= " WHERE LOWER(s.full_name) LIKE LOWER(?)
+              OR LOWER(s.staff_code) LIKE LOWER(?)
+              OR LOWER(IFNULL(s.phone, '')) LIKE LOWER(?)
+              OR LOWER(IFNULL(s.email, '')) LIKE LOWER(?)";
+    $sql .= " ORDER BY s.full_name ASC";
     $searchPattern = '%' . $searchTerm . '%';
     $stmt = $mysqli->prepare($sql);
-    $stmt->bind_param('sss', $searchPattern, $searchPattern, $searchPattern);
+    $stmt->bind_param('ssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern);
     $stmt->execute();
     $result = $stmt->get_result();
 } else {
@@ -326,7 +328,7 @@ if ($result) {
                 <form method="GET" class="mb-4">
                     <div class="row">
                         <div class="col-md-10">
-                            <input type="text" class="form-control" name="search" placeholder="Search by name, code, or phone..." value="<?php echo htmlspecialchars($searchTerm); ?>">
+                            <input type="text" class="form-control" name="search" data-live-search="staff" placeholder="Search by name, code, or phone..." value="<?php echo htmlspecialchars($searchTerm); ?>" autocomplete="off">
                         </div>
                         <div class="col-md-2">
                             <button type="submit" class="btn btn-primary w-100">
@@ -361,7 +363,7 @@ if ($result) {
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($staff_list as $staff): ?>
-                                    <tr>
+                                    <tr data-search-row="staff" data-search="<?php echo htmlspecialchars(strtolower($staff['full_name'] . ' ' . $staff['staff_code'] . ' ' . $staff['phone'] . ' ' . $staff['email'])); ?>">
                                         <td><strong><?php echo htmlspecialchars($staff['staff_code']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($staff['full_name']); ?></td>
                                         <td><?php echo htmlspecialchars($staff['phone']); ?></td>
