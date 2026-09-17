@@ -56,6 +56,14 @@ function ensureServiceIntervalDaysColumn($conn) {
     }
 }
 
+function ensureDeliveryTypeColumn($conn) {
+    $column = $conn->query("SHOW COLUMNS FROM service_records LIKE 'delivery_type'");
+    if ($column && $column->num_rows === 0) {
+        $conn->query("ALTER TABLE service_records ADD COLUMN delivery_type ENUM('normal', 'offer') NOT NULL DEFAULT 'normal' AFTER total_amount");
+        $conn->query("UPDATE service_records SET delivery_type = 'normal' WHERE delivery_type IS NULL OR delivery_type = ''");
+    }
+}
+
 /**
  * Global database connection variable
  */
@@ -63,14 +71,29 @@ $mysqli = getDbConnection();
 ensureUserLanguageColumn($mysqli);
 ensureNextDueOverrideColumn($mysqli);
 ensureServiceIntervalDaysColumn($mysqli);
+ensureDeliveryTypeColumn($mysqli);
 
 /**
  * Session Configuration
+ * Isolated save path avoids shared-host GC deleting sessions after ~24 minutes.
  */
+$sessionLifetime = 60 * 60 * 8;
+$sessionPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'sessions';
+if (!is_dir($sessionPath)) {
+    mkdir($sessionPath, 0700, true);
+}
 if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.cookie_httponly', 1);
-    ini_set('session.use_only_cookies', 1);
-    ini_set('session.cookie_secure', 0);
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.gc_maxlifetime', (string) $sessionLifetime);
+    session_save_path($sessionPath);
+    session_set_cookie_params([
+        'lifetime' => $sessionLifetime,
+        'path' => '/',
+        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 
@@ -100,6 +123,24 @@ function getServiceIntervalDays($customer) {
     }
 
     return 0;
+}
+
+function deliveryTypeOf($record) {
+    $type = strtolower(trim((string) ($record['delivery_type'] ?? 'normal')));
+    return $type === 'offer' ? 'offer' : 'normal';
+}
+
+function isOfferDelivery($record) {
+    return deliveryTypeOf($record) === 'offer';
+}
+
+function paidAmountForRecord($record) {
+    return isOfferDelivery($record) ? 0.0 : (float) ($record['total_amount'] ?? 0);
+}
+
+function customerDisplayName($record) {
+    $name = trim((string) ($record['full_name'] ?? $record['customer_name'] ?? ''));
+    return $name !== '' ? $name : 'Unknown customer';
 }
 
 function calculateNextDueDate($lastServiceDate, $intervalDays, $override = null) {
