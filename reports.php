@@ -20,6 +20,7 @@ checkSessionTimeout();
 $start_date = '';
 $end_date = '';
 $report_type = 'all';
+$customer_id = 0;
 $report_data = [];
 $served_customers = [];
 $due_customers = [];
@@ -27,12 +28,60 @@ $overdue_customers = [];
 $next_due_customers = [];
 $sales_summary = [];
 $staff_performance = [];
+$customer_id = isset($_GET['customer_id']) ? intval($_GET['customer_id']) : 0;
+$customer_profile = null;
+$customer_history = [];
+$customer_totals = [
+    'total_deliveries' => 0,
+    'total_gallons' => 0,
+    'paid_deliveries' => 0,
+    'offer_deliveries' => 0,
+    'paid_gallons' => 0,
+    'offer_gallons' => 0,
+    'total_paid' => 0,
+];
+
+if ($customer_id > 0) {
+    $profile_stmt = $mysqli->prepare('SELECT * FROM customers WHERE id = ? LIMIT 1');
+    $profile_stmt->bind_param('i', $customer_id);
+    $profile_stmt->execute();
+    $customer_profile = $profile_stmt->get_result()->fetch_assoc() ?: null;
+
+    if ($customer_profile) {
+        $history_sql = "
+            SELECT sr.*, s.full_name AS staff_name
+            FROM service_records sr
+            INNER JOIN staff s ON sr.staff_id = s.id
+            WHERE sr.customer_id = ?
+            ORDER BY sr.service_date_time DESC
+        ";
+        $history_stmt = $mysqli->prepare($history_sql);
+        $history_stmt->bind_param('i', $customer_id);
+        $history_stmt->execute();
+        $history_result = $history_stmt->get_result();
+        while ($row = $history_result->fetch_assoc()) {
+            $customer_history[] = $row;
+            $gallons = (int) $row['gallons_delivered'];
+            $customer_totals['total_deliveries']++;
+            $customer_totals['total_gallons'] += $gallons;
+            if (isOfferDelivery($row)) {
+                $customer_totals['offer_deliveries']++;
+                $customer_totals['offer_gallons'] += $gallons;
+            } else {
+                $customer_totals['paid_deliveries']++;
+                $customer_totals['paid_gallons'] += $gallons;
+                $customer_totals['total_paid'] += paidAmountForRecord($row);
+            }
+        }
+    }
+}
 
 // Handle report generation
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $start_date = trim($_POST['start_date'] ?? '');
     $end_date = trim($_POST['end_date'] ?? '');
     $report_type = $_POST['report_type'] ?? 'all';
+    $customer_id = isset($_POST['customer_id']) ? intval($_POST['customer_id']) : 0;
 
     // Next-due reports are forward-looking and must never include dates before today.
     if ($report_type === 'next_due') {
@@ -60,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     sr.gallons_delivered,
                     sr.price_per_gallon,
                     sr.total_amount,
+                    sr.delivery_type,
                     c.customer_code,
                     c.full_name as customer_name,
                     c.phone1,
@@ -202,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     COUNT(DISTINCT sr.customer_id) as total_customers_served,
                     COUNT(sr.id) as total_deliveries,
                     COALESCE(SUM(sr.gallons_delivered), 0) as total_gallons,
-                    COALESCE(SUM(sr.total_amount), 0) as total_sales,
+                    COALESCE(SUM(CASE WHEN COALESCE(sr.delivery_type, 'normal') = 'offer' THEN 0 ELSE sr.total_amount END), 0) as total_sales,
                     s.staff_code,
                     s.full_name as staff_name
                 FROM service_records sr
@@ -227,7 +277,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     COUNT(DISTINCT customer_id) as total_customers_served,
                     COUNT(id) as total_deliveries,
                     COALESCE(SUM(gallons_delivered), 0) as total_gallons,
-                    COALESCE(SUM(total_amount), 0) as total_sales
+                    COALESCE(SUM(CASE WHEN COALESCE(delivery_type, 'normal') = 'offer' THEN 0 ELSE total_amount END), 0) as total_sales,
+                    COALESCE(SUM(CASE WHEN COALESCE(delivery_type, 'normal') = 'offer' THEN 0 ELSE gallons_delivered END), 0) as paid_gallons,
+                    COALESCE(SUM(CASE WHEN COALESCE(delivery_type, 'normal') = 'offer' THEN gallons_delivered ELSE 0 END), 0) as offer_gallons,
+                    SUM(CASE WHEN COALESCE(delivery_type, 'normal') = 'offer' THEN 1 ELSE 0 END) as offer_deliveries,
+                    SUM(CASE WHEN COALESCE(delivery_type, 'normal') = 'offer' THEN 0 ELSE 1 END) as paid_deliveries
                 FROM service_records
                 WHERE DATE(service_date_time) BETWEEN ? AND ?
             ";
@@ -252,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     s.email,
                     COUNT(sr.id) as total_deliveries,
                     COALESCE(SUM(sr.gallons_delivered), 0) as total_gallons,
-                    COALESCE(SUM(sr.total_amount), 0) as total_sales,
+                    COALESCE(SUM(CASE WHEN COALESCE(sr.delivery_type, 'normal') = 'offer' THEN 0 ELSE sr.total_amount END), 0) as total_sales,
                     COUNT(DISTINCT sr.customer_id) as unique_customers
                 FROM staff s
                 LEFT JOIN service_records sr ON s.id = sr.staff_id 
@@ -483,7 +537,7 @@ if ($report_type === 'next_due') {
                                 <input type="date" class="form-control" name="end_date" value="<?php echo htmlspecialchars($end_date); ?>" required>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="mb-3">
                                 <label class="form-label">Report Type</label>
                                 <select class="form-select" name="report_type">
@@ -494,6 +548,20 @@ if ($report_type === 'next_due') {
                                     <option value="overdue" <?php echo $report_type === 'overdue' ? 'selected' : ''; ?>>Overdue Customers</option>
                                     <option value="sales_summary" <?php echo $report_type === 'sales_summary' ? 'selected' : ''; ?>>Sales Summary</option>
                                     <option value="staff_performance" <?php echo $report_type === 'staff_performance' ? 'selected' : ''; ?>>Staff Performance</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="mb-3">
+                                <label class="form-label">Customer</label>
+                                <select class="form-select" name="customer_id">
+                                    <option value="">All Customers</option>
+                                    <?php
+                                    $customer_list = $mysqli->query("SELECT id, full_name FROM customers ORDER BY full_name ASC");
+                                    while ($customerRow = $customer_list->fetch_assoc()):
+                                    ?>
+                                        <option value="<?php echo (int)$customerRow['id']; ?>" <?php echo $customer_id === (int)$customerRow['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($customerRow['full_name']); ?></option>
+                                    <?php endwhile; ?>
                                 </select>
                             </div>
                         </div>
@@ -511,6 +579,70 @@ if ($report_type === 'next_due') {
                 </form>
             </div>
         </div>
+
+        <?php if ($customer_id > 0 && $customer_profile): ?>
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-person-vcard-fill me-2"></i>Customer Individual Report</span>
+                    <div class="no-print">
+                        <a href="deliveries.php?customer_id=<?php echo (int) $customer_profile['id']; ?>" class="btn btn-light btn-sm">Add Gallons</a>
+                        <a href="generate_pdf.php?customer_id=<?php echo (int) $customer_profile['id']; ?>" class="btn btn-success btn-sm">Download PDF</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h4><?php echo htmlspecialchars($customer_profile['full_name']); ?></h4>
+                    <p class="mb-2"><strong>Customer:</strong> <?php echo htmlspecialchars($customer_profile['full_name']); ?></p>
+                    <p class="mb-2"><strong>Contact:</strong> <?php echo htmlspecialchars($customer_profile['phone1'] ?: '-'); ?> <?php echo htmlspecialchars($customer_profile['phone2'] ? ' / ' . $customer_profile['phone2'] : ''); ?></p>
+                    <?php if ($customer_profile['email']): ?><p class="mb-2"><strong>Email:</strong> <?php echo htmlspecialchars($customer_profile['email']); ?></p><?php endif; ?>
+                    <?php if ($customer_profile['address']): ?><p class="mb-2"><strong>Address:</strong> <?php echo htmlspecialchars($customer_profile['address']); ?></p><?php endif; ?>
+                    <div class="row mt-3">
+                        <div class="col-md-3"><div class="summary-card"><div class="summary-value"><?php echo number_format($customer_totals['total_deliveries']); ?></div><div class="summary-label">Total Deliveries</div></div></div>
+                        <div class="col-md-3"><div class="summary-card"><div class="summary-value"><?php echo number_format($customer_totals['total_gallons']); ?></div><div class="summary-label">Total Gallons Delivered</div></div></div>
+                        <div class="col-md-3"><div class="summary-card"><div class="summary-value"><?php echo number_format($customer_totals['paid_deliveries']); ?></div><div class="summary-label">Paid Deliveries</div></div></div>
+                        <div class="col-md-3"><div class="summary-card"><div class="summary-value"><?php echo number_format($customer_totals['total_paid'], 2); ?></div><div class="summary-label">Total Amount Paid</div></div></div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3"><div class="summary-card"><div class="summary-value"><?php echo number_format($customer_totals['offer_deliveries']); ?></div><div class="summary-label">Offer Deliveries</div></div></div>
+                        <div class="col-md-3"><div class="summary-card"><div class="summary-value"><?php echo number_format($customer_totals['paid_gallons']); ?></div><div class="summary-label">Paid Gallons</div></div></div>
+                        <div class="col-md-3"><div class="summary-card"><div class="summary-value"><?php echo number_format($customer_totals['offer_gallons']); ?></div><div class="summary-label">Offer Gallons</div></div></div>
+                        <div class="col-md-3"><div class="summary-card"><div class="summary-value"><?php echo number_format($customer_totals['total_paid'], 2); ?></div><div class="summary-label">Amount Paid (TZS)</div></div></div>
+                    </div>
+                    <div class="table-responsive mt-4">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Gallons</th>
+                                    <th>Price/Gallon</th>
+                                    <th>Type</th>
+                                    <th>Amount Paid</th>
+                                    <th>Staff</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($customer_history)): ?>
+                                    <tr><td colspan="7" class="text-center text-muted">No deliveries yet</td></tr>
+                                <?php else: ?>
+                                    <?php foreach ($customer_history as $record): ?>
+                                        <?php $type = deliveryTypeOf($record); ?>
+                                        <tr>
+                                            <td><?php echo date('d M Y H:i', strtotime($record['service_date_time'])); ?></td>
+                                            <td><?php echo htmlspecialchars($customer_profile['full_name']); ?></td>
+                                            <td><?php echo number_format((int) $record['gallons_delivered']); ?></td>
+                                            <td><?php echo number_format((float) $record['price_per_gallon'], 2); ?></td>
+                                            <td><?php echo $type === 'offer' ? 'Offer' : 'Normal'; ?></td>
+                                            <td><?php echo $type === 'offer' ? 'Offer / Free' : number_format(paidAmountForRecord($record), 2) . ' TZS'; ?></td>
+                                            <td><?php echo htmlspecialchars($record['staff_name']); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- Report Results -->
         <?php if (!empty($served_customers) || !empty($due_customers) || !empty($next_due_customers) || !empty($overdue_customers) || !empty($staff_performance) || !empty($sales_summary)): ?>
@@ -616,25 +748,22 @@ if ($report_type === 'next_due') {
                                                 <th>Staff</th>
                                                 <th>Gallons</th>
                                                 <th>Price/Gallon</th>
-                                                <th>Total (TZS)</th>
+                                                <th>Type</th>
+                                                <th>Amount Paid</th>
                                                 <th>Recorded By</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php foreach ($served_customers as $record): ?>
+                                                <?php $type = deliveryTypeOf($record); ?>
                                                 <tr>
                                                     <td><?php echo date('d M Y H:i', strtotime($record['service_date_time'])); ?></td>
-                                                    <td>
-                                                        <strong><?php echo htmlspecialchars($record['customer_code']); ?></strong><br>
-                                                        <small><?php echo htmlspecialchars($record['customer_name']); ?></small>
-                                                    </td>
-                                                    <td>
-                                                        <strong><?php echo htmlspecialchars($record['staff_code']); ?></strong><br>
-                                                        <small><?php echo htmlspecialchars($record['staff_name']); ?></small>
-                                                    </td>
+                                                    <td><?php echo htmlspecialchars(customerDisplayName($record)); ?></td>
+                                                    <td><?php echo htmlspecialchars($record['staff_name']); ?></td>
                                                     <td><?php echo number_format((int)($record['gallons_delivered'] ?? 0)); ?></td>
                                                     <td><?php echo number_format((float)($record['price_per_gallon'] ?? 0), 2); ?></td>
-                                                    <td><strong><?php echo number_format((float)($record['total_amount'] ?? 0), 2); ?></strong></td>
+                                                    <td><span class="badge <?php echo $type === 'offer' ? 'bg-warning text-dark' : 'bg-success'; ?>"><?php echo $type === 'offer' ? 'Offer' : 'Normal'; ?></span></td>
+                                                    <td><strong><?php echo $type === 'offer' ? 'Offer / Free' : number_format(paidAmountForRecord($record), 2); ?></strong></td>
                                                     <td><?php echo htmlspecialchars($record['recorded_by_name']); ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -655,8 +784,7 @@ if ($report_type === 'next_due') {
                                     <table class="table table-hover">
                                         <thead>
                                             <tr>
-                                                <th>Customer Code</th>
-                                                <th>Customer Name</th>
+                                                <th>Customer</th>
                                                 <th>Phone</th>
                                                 <th>Address</th>
                                                 <th>Next Due Date</th>
@@ -666,7 +794,6 @@ if ($report_type === 'next_due') {
                                         <tbody>
                                             <?php foreach ($due_list as $customer): ?>
                                                 <tr>
-                                                    <td><strong><?php echo htmlspecialchars($customer['customer_code']); ?></strong></td>
                                                     <td><?php echo htmlspecialchars($customer['full_name']); ?></td>
                                                     <td><?php echo htmlspecialchars($customer['phone1']); ?></td>
                                                     <td><?php echo htmlspecialchars($customer['address'] ?: '-'); ?></td>
@@ -690,8 +817,7 @@ if ($report_type === 'next_due') {
                                     <table class="table table-hover">
                                         <thead>
                                             <tr>
-                                                <th>Customer Code</th>
-                                                <th>Customer Name</th>
+                                                <th>Customer</th>
                                                 <th>Phone</th>
                                                 <th>Address</th>
                                                 <th>Was Due</th>
@@ -702,7 +828,6 @@ if ($report_type === 'next_due') {
                                         <tbody>
                                             <?php foreach ($overdue_customers as $customer): ?>
                                                 <tr>
-                                                    <td><strong><?php echo htmlspecialchars($customer['customer_code']); ?></strong></td>
                                                     <td><?php echo htmlspecialchars($customer['full_name']); ?></td>
                                                     <td><?php echo htmlspecialchars($customer['phone1']); ?></td>
                                                     <td><?php echo htmlspecialchars($customer['address'] ?: '-'); ?></td>
