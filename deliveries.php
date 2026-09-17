@@ -39,25 +39,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $staff_id = intval($_POST['staff_id']);
         $service_date_time = trim($_POST['service_date_time'] ?? '');
         $gallons_delivered = filter_input(INPUT_POST, 'gallons_delivered', FILTER_VALIDATE_INT);
-        $price_per_gallon = floatval($_POST['price_per_gallon'] ?? 0);
+        $delivery_type = $_POST['delivery_type'] ?? 'normal';
+        if (!in_array($delivery_type, ['normal', 'offer'], true)) {
+            $delivery_type = 'normal';
+        }
+        $price_per_gallon = isset($_POST['price_per_gallon']) ? (float) $_POST['price_per_gallon'] : 0;
         $notes = trim($_POST['notes'] ?? '');
-        
-        // Validation
-        if ($customer_id <= 0 || $staff_id <= 0 || empty($service_date_time) || $gallons_delivered === false || $gallons_delivered <= 0 || $price_per_gallon <= 0) {
+        $offer_note = trim($_POST['offer_note'] ?? '');
+        if ($delivery_type === 'offer' && $offer_note !== '') {
+            $notes = trim($notes . ($notes !== '' ? ' ' : '') . $offer_note);
+        }
+
+        $priceValid = $delivery_type === 'offer' ? ($price_per_gallon >= 0) : ($price_per_gallon > 0);
+        if ($customer_id <= 0 || $staff_id <= 0 || empty($service_date_time) || $gallons_delivered === false || $gallons_delivered <= 0 || !$priceValid) {
             $message = 'Please fill in all required fields with valid values.';
             $messageType = 'danger';
         } else {
-            // Calculate total amount automatically
-            $total_amount = $gallons_delivered * $price_per_gallon;
+            $total_amount = ($delivery_type === 'offer') ? 0.00 : ($gallons_delivered * $price_per_gallon);
             
             // Insert new delivery record
-            $sql = "INSERT INTO service_records (customer_id, staff_id, service_date_time, gallons_delivered, price_per_gallon, total_amount, notes, recorded_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO service_records (customer_id, staff_id, service_date_time, gallons_delivered, price_per_gallon, total_amount, delivery_type, notes, recorded_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $mysqli->prepare($sql);
-            $stmt->bind_param('iisiddsi', $customer_id, $staff_id, $service_date_time, $gallons_delivered, $price_per_gallon, $total_amount, $notes, $_SESSION['user_id']);
+            $stmt->bind_param('iisiddssi', $customer_id, $staff_id, $service_date_time, $gallons_delivered, $price_per_gallon, $total_amount, $delivery_type, $notes, $_SESSION['user_id']);
             
             if ($stmt->execute()) {
-                $message = 'Delivery recorded successfully! Total amount: ' . number_format($total_amount, 2) . ' ' . CURRENCY;
+                $message = 'Delivery recorded successfully! ' . (($delivery_type === 'offer') ? 'Offer delivery recorded as free.' : 'Total amount: ' . number_format($total_amount, 2) . ' ' . CURRENCY);
                 $messageType = 'success';
             } else {
                 $message = 'Error recording delivery: ' . $mysqli->error;
@@ -88,20 +95,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Handle filters
 $searchTerm = '';
-$customerFilter = 0;
-$staffFilter = 0;
-$dateFilter = '';
+$customerFilter = isset($_GET['customer']) ? intval($_GET['customer']) : 0;
+$staffFilter = isset($_GET['staff']) ? intval($_GET['staff']) : 0;
+$dateFilter = isset($_GET['date']) ? trim($_GET['date']) : '';
+$preselectedCustomerId = isset($_GET['customer_id']) ? intval($_GET['customer_id']) : 0;
 if (isset($_GET['search'])) {
     $searchTerm = trim($_GET['search'] ?? '');
 }
-if (isset($_GET['customer'])) {
-    $customerFilter = intval($_GET['customer']);
-}
-if (isset($_GET['staff'])) {
-    $staffFilter = intval($_GET['staff']);
-}
-if (isset($_GET['date'])) {
-    $dateFilter = trim($_GET['date'] ?? '');
+if ($preselectedCustomerId > 0) {
+    $customerFilter = $preselectedCustomerId;
 }
 
 // Build query to fetch deliveries
@@ -119,14 +121,18 @@ $params = [];
 $types = '';
 
 if (!empty($searchTerm)) {
-    $sql .= " AND (c.full_name LIKE ? 
-              OR c.customer_code LIKE ? 
-              OR s.full_name LIKE ?)";
+    $sql .= " AND (LOWER(c.full_name) LIKE LOWER(?)
+              OR LOWER(c.customer_code) LIKE LOWER(?)
+              OR LOWER(IFNULL(c.phone1, '')) LIKE LOWER(?)
+              OR LOWER(s.full_name) LIKE LOWER(?)
+              OR LOWER(s.staff_code) LIKE LOWER(?))";
     $searchPattern = '%' . $searchTerm . '%';
     $params[] = $searchPattern;
     $params[] = $searchPattern;
     $params[] = $searchPattern;
-    $types .= 'sss';
+    $params[] = $searchPattern;
+    $params[] = $searchPattern;
+    $types .= 'sssss';
 }
 
 if ($customerFilter > 0) {
@@ -183,6 +189,16 @@ $staff_dropdown = [];
 if ($staff_result) {
     while ($row = $staff_result->fetch_assoc()) {
         $staff_dropdown[] = $row;
+    }
+}
+
+$preselectedCustomer = null;
+if ($preselectedCustomerId > 0) {
+    foreach ($customers_dropdown as $cust) {
+        if ((int) $cust['id'] === $preselectedCustomerId) {
+            $preselectedCustomer = $cust;
+            break;
+        }
     }
 }
 ?>
@@ -341,7 +357,7 @@ if ($staff_result) {
                 <form method="GET" class="mb-4">
                     <div class="row">
                         <div class="col-md-3">
-                            <input type="text" class="form-control" name="search" placeholder="Search..." value="<?php echo htmlspecialchars($searchTerm); ?>">
+                            <input type="text" class="form-control" name="search" data-live-search="deliveries" placeholder="Search customer or staff..." value="<?php echo htmlspecialchars($searchTerm); ?>" autocomplete="off">
                         </div>
                         <div class="col-md-2">
                             <select class="form-select" name="customer">
@@ -384,6 +400,7 @@ if ($staff_result) {
                                 <th>Staff</th>
                                 <th>Gallons</th>
                                 <th>Price/Gallon</th>
+                                <th>Type</th>
                                 <th>Total Amount</th>
                                 <th>Recorded By</th>
                                 <th>Actions</th>
@@ -392,26 +409,26 @@ if ($staff_result) {
                         <tbody>
                             <?php if (empty($deliveries)): ?>
                                 <tr>
-                                    <td colspan="8" class="text-center py-4">
+                                    <td colspan="9" class="text-center py-4">
                                         <i class="bi bi-inbox" style="font-size: 48px; color: #ccc;"></i>
                                         <p class="mt-2 text-muted">No delivery records found</p>
                                     </td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($deliveries as $delivery): ?>
-                                    <tr>
+                                    <?php $deliveryType = deliveryTypeOf($delivery); ?>
+                                    <tr data-search-row="delivery" data-search="<?php echo htmlspecialchars(strtolower($delivery['customer_name'] . ' ' . $delivery['customer_code'] . ' ' . $delivery['staff_name'] . ' ' . $delivery['staff_code'])); ?>">
                                         <td><?php echo date('d M Y H:i', strtotime($delivery['service_date_time'])); ?></td>
                                         <td>
-                                            <strong><?php echo htmlspecialchars($delivery['customer_code']); ?></strong><br>
-                                            <small><?php echo htmlspecialchars($delivery['customer_name']); ?></small>
+                                            <strong><?php echo htmlspecialchars(customerDisplayName($delivery)); ?></strong>
                                         </td>
                                         <td>
-                                            <strong><?php echo htmlspecialchars($delivery['staff_code']); ?></strong><br>
-                                            <small><?php echo htmlspecialchars($delivery['staff_name']); ?></small>
+                                            <?php echo htmlspecialchars($delivery['staff_name']); ?>
                                         </td>
                                         <td><?php echo number_format((int) $delivery['gallons_delivered']); ?></td>
-                                        <td><?php echo number_format($delivery['price_per_gallon'], 2); ?></td>
-                                        <td><strong><?php echo number_format($delivery['total_amount'], 2); ?> <?php echo CURRENCY; ?></strong></td>
+                                        <td><?php echo number_format((float)($delivery['price_per_gallon'] ?? 0), 2); ?></td>
+                                        <td><span class="badge <?php echo $deliveryType === 'offer' ? 'bg-warning text-dark' : 'bg-success'; ?>"><?php echo $deliveryType === 'offer' ? 'Offer' : 'Normal'; ?></span></td>
+                                        <td><strong><?php echo $deliveryType === 'offer' ? 'Offer / Free' : number_format(paidAmountForRecord($delivery), 2) . ' ' . CURRENCY; ?></strong></td>
                                         <td><?php echo htmlspecialchars($delivery['recorded_by_name']); ?></td>
                                         <td>
                                             <button class="btn btn-danger action-btn" data-bs-toggle="modal" data-bs-target="#deleteDeliveryModal<?php echo $delivery['id']; ?>">
@@ -444,14 +461,19 @@ if ($staff_result) {
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">Customer *</label>
+                                    <?php if ($preselectedCustomer): ?>
+                                        <input type="hidden" name="customer_id" value="<?php echo (int) $preselectedCustomer['id']; ?>">
+                                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($preselectedCustomer['full_name']); ?>" readonly>
+                                    <?php else: ?>
                                     <select class="form-select" name="customer_id" required id="customerSelect">
                                         <option value="">Select Customer</option>
                                         <?php foreach ($customers_dropdown as $cust): ?>
                                             <option value="<?php echo $cust['id']; ?>">
-                                                <?php echo htmlspecialchars($cust['customer_code'] . ' - ' . $cust['full_name']); ?>
+                                                <?php echo htmlspecialchars($cust['full_name']); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -461,7 +483,7 @@ if ($staff_result) {
                                         <option value="">Select Staff</option>
                                         <?php foreach ($staff_dropdown as $staff): ?>
                                             <option value="<?php echo $staff['id']; ?>">
-                                                <?php echo htmlspecialchars($staff['staff_code'] . ' - ' . $staff['full_name']); ?>
+                                                <?php echo htmlspecialchars($staff['full_name']); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -491,14 +513,38 @@ if ($staff_result) {
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
-                                    <label class="form-label">Price Per Gallon (<?php echo CURRENCY; ?>) *</label>
-                                    <input type="number" class="form-control" name="price_per_gallon" step="0.01" min="0.01" required id="priceInput" value="5000" oninput="calculateTotal()">
+                                    <label class="form-label">Delivery Type *</label>
+                                    <select class="form-select" name="delivery_type" id="deliveryTypeSelect" onchange="togglePriceFields()">
+                                        <option value="normal">Normal</option>
+                                        <option value="offer">Offer</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Total Amount</label>
                                     <div class="total-amount" id="totalAmount">0.00 <?php echo CURRENCY; ?></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Price Per Gallon (<?php echo CURRENCY; ?>) *</label>
+                                    <select class="form-select" id="pricePreset" onchange="handlePricePresetChange()">
+                                        <option value="4800">4,800/=</option>
+                                        <option value="5000" selected>5,000/=</option>
+                                        <option value="6000">6,000/=</option>
+                                        <option value="7000">7,000/=</option>
+                                        <option value="custom">Custom Price</option>
+                                    </select>
+                                    <input type="number" class="form-control mt-2 d-none" name="price_per_gallon" step="0.01" min="0" required id="priceInput" value="5000" oninput="calculateTotal()">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Offer / Free Notes</label>
+                                    <input type="text" class="form-control" name="offer_note" placeholder="Optional note for free delivery">
                                 </div>
                             </div>
                         </div>
@@ -553,17 +599,54 @@ if ($staff_result) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
+        function handlePricePresetChange() {
+            const preset = document.getElementById('pricePreset').value;
+            const priceInput = document.getElementById('priceInput');
+            if (preset !== 'custom') {
+                priceInput.value = preset;
+                priceInput.classList.add('d-none');
+            } else {
+                priceInput.classList.remove('d-none');
+                priceInput.focus();
+            }
+            calculateTotal();
+        }
+
+        function togglePriceFields() {
+            const deliveryType = document.getElementById('deliveryTypeSelect').value;
+            const priceInput = document.getElementById('priceInput');
+            const totalAmount = document.getElementById('totalAmount');
+            if (deliveryType === 'offer') {
+                priceInput.required = false;
+                if (totalAmount) {
+                    totalAmount.textContent = 'Offer / Free';
+                }
+            } else {
+                priceInput.required = true;
+            }
+            calculateTotal();
+        }
+
         // Calculate total amount automatically
         function calculateTotal() {
             const gallons = parseFloat(document.getElementById('gallonsInput').value) || 0;
             const price = parseFloat(document.getElementById('priceInput').value) || 0;
-            const total = gallons * price;
-            document.getElementById('totalAmount').textContent = total.toFixed(2) + ' <?php echo CURRENCY; ?>';
+            const deliveryType = document.getElementById('deliveryTypeSelect')?.value || 'normal';
+            const total = deliveryType === 'offer' ? 0 : gallons * price;
+            document.getElementById('totalAmount').textContent = deliveryType === 'offer'
+                ? 'Offer / Free'
+                : total.toFixed(2) + ' <?php echo CURRENCY; ?>';
         }
         
         // Initialize calculation on page load
         document.addEventListener('DOMContentLoaded', function() {
+            const presetCustomerId = <?php echo (int)$preselectedCustomerId; ?>;
+            if (presetCustomerId > 0) {
+                const addDeliveryModal = new bootstrap.Modal(document.getElementById('addDeliveryModal'));
+                addDeliveryModal.show();
+            }
             calculateTotal();
+            togglePriceFields();
         });
     </script>
 </body>
