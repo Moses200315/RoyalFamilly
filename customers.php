@@ -157,22 +157,26 @@ $sql = "SELECT c.*,
         (SELECT sr.service_date_time FROM service_records sr 
          WHERE sr.customer_id = c.id 
          ORDER BY sr.service_date_time DESC LIMIT 1) as last_service_date,
+        (SELECT COALESCE(SUM(sr.gallons_delivered), 0) FROM service_records sr WHERE sr.customer_id = c.id) as total_gallons,
         c.service_interval_days,
         c.service_interval_hours
         FROM customers c";
 
 if (!empty($searchTerm)) {
-    $sql .= " WHERE c.full_name LIKE ? 
-              OR c.customer_code LIKE ? 
-              OR c.phone1 LIKE ?
-              OR c.phone2 LIKE ?";
+    $sql .= " WHERE LOWER(c.full_name) LIKE LOWER(?)
+              OR LOWER(c.customer_code) LIKE LOWER(?)
+              OR LOWER(IFNULL(c.phone1, '')) LIKE LOWER(?)
+              OR LOWER(IFNULL(c.phone2, '')) LIKE LOWER(?)
+              OR LOWER(IFNULL(c.email, '')) LIKE LOWER(?)
+              OR LOWER(IFNULL(c.address, '')) LIKE LOWER(?)";
+    $sql .= " ORDER BY c.full_name ASC";
     $searchPattern = '%' . $searchTerm . '%';
     $stmt = $mysqli->prepare($sql);
-    $stmt->bind_param('ssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern);
+    $stmt->bind_param('ssssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern, $searchPattern, $searchPattern);
     $stmt->execute();
     $result = $stmt->get_result();
 } else {
-    $sql .= " ORDER BY c.created_at DESC";
+    $sql .= " ORDER BY c.full_name ASC";
     $result = $mysqli->query($sql);
 }
 
@@ -357,7 +361,7 @@ if ($result) {
                 <form method="GET" class="mb-4">
                     <div class="row">
                         <div class="col-md-10">
-                            <input type="text" class="form-control" name="search" placeholder="Search by name, code, or phone..." value="<?php echo htmlspecialchars($searchTerm); ?>">
+                            <input type="text" class="form-control" name="search" data-live-search="customers" placeholder="Search by name, phone, or address..." value="<?php echo htmlspecialchars($searchTerm); ?>" autocomplete="off">
                         </div>
                         <div class="col-md-2">
                             <button type="submit" class="btn btn-primary w-100">
@@ -372,14 +376,12 @@ if ($result) {
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Customer ID</th>
-                                <th>Name</th>
-                                <th>Phone 1</th>
-                                <th>Phone 2</th>
+                                <th>Customer</th>
+                                <th>Contact</th>
+                                <th>Total Gallons</th>
                                 <th>Interval</th>
                                 <th>Last Service</th>
                                 <th>Next Due</th>
-                                <th>Due Today</th>
                                 <th>Address</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -388,23 +390,40 @@ if ($result) {
                         <tbody>
                             <?php if (empty($customers)): ?>
                                 <tr>
-                                    <td colspan="11" class="text-center py-4">
+                                    <td colspan="9" class="text-center py-4">
                                         <i class="bi bi-inbox" style="font-size: 48px; color: #ccc;"></i>
                                         <p class="mt-2 text-muted">No customers found</p>
                                     </td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($customers as $customer): ?>
-                                    <tr>
-                                        <td><strong><?php echo htmlspecialchars($customer['customer_code']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($customer['full_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($customer['phone1']); ?></td>
-                                        <td><?php echo htmlspecialchars($customer['phone2'] ?: '-'); ?></td>
-                                        <td><?php $intervalDays = getServiceIntervalDays($customer); echo $intervalDays ? $intervalDays . ' day' . ($intervalDays === 1 ? '' : 's') : '-'; ?></td>
+                                    <?php
+                                        $intervalDays = getServiceIntervalDays($customer);
+                                        $nextDue = calculateNextDueDate($customer['last_service_date'], $intervalDays);
+                                        $searchHaystack = strtolower(trim(implode(' ', [
+                                            $customer['full_name'],
+                                            $customer['customer_code'],
+                                            $customer['phone1'],
+                                            $customer['phone2'],
+                                            $customer['email'],
+                                            $customer['address'],
+                                        ])));
+                                    ?>
+                                    <tr data-search-row="customer" data-search="<?php echo htmlspecialchars($searchHaystack); ?>">
+                                        <td>
+                                            <strong><?php echo htmlspecialchars($customer['full_name']); ?></strong>
+                                            <div class="small text-muted"><?php echo htmlspecialchars($customer['customer_code']); ?></div>
+                                        </td>
+                                        <td>
+                                            <?php echo htmlspecialchars($customer['phone1']); ?>
+                                            <?php if (!empty($customer['phone2'])): ?>
+                                                <div class="small text-muted"><?php echo htmlspecialchars($customer['phone2']); ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo number_format((int) ($customer['total_gallons'] ?? 0)); ?></td>
+                                        <td><?php echo $intervalDays ? $intervalDays . ' day' . ($intervalDays === 1 ? '' : 's') : '-'; ?></td>
                                         <td><?php echo $customer['last_service_date'] ? date('d M Y H:i', strtotime($customer['last_service_date'])) : '-'; ?></td>
-                                        <?php $nextDue = calculateNextDueDate($customer['last_service_date'], $intervalDays); ?>
                                         <td><?php echo $nextDue ? date('d M Y', strtotime($nextDue)) : '-'; ?></td>
-                                        <td><?php echo $nextDue && date('Y-m-d', strtotime($nextDue)) === date('Y-m-d') ? 'Yes' : 'No'; ?></td>
                                         <td class="customer-address"><?php echo htmlspecialchars($customer['address'] ?: '-'); ?></td>
                                         <td>
                                             <span class="status-badge status-<?php echo $customer['status']; ?>">
@@ -412,10 +431,12 @@ if ($result) {
                                             </span>
                                         </td>
                                         <td>
-                                            <button class="btn btn-info action-btn" data-bs-toggle="modal" data-bs-target="#editCustomerModal<?php echo $customer['id']; ?>">
+                                            <a href="reports.php?customer_id=<?php echo (int)$customer['id']; ?>" class="btn btn-info action-btn">Report</a>
+                                            <a href="deliveries.php?customer_id=<?php echo (int)$customer['id']; ?>" class="btn btn-success action-btn">Add Gallons</a>
+                                            <button class="btn btn-warning action-btn" data-bs-toggle="modal" data-bs-target="#editCustomerModal<?php echo $customer['id']; ?>" title="Edit">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            <button class="btn btn-danger action-btn" data-bs-toggle="modal" data-bs-target="#deleteCustomerModal<?php echo $customer['id']; ?>">
+                                            <button class="btn btn-danger action-btn" data-bs-toggle="modal" data-bs-target="#deleteCustomerModal<?php echo $customer['id']; ?>" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </td>
