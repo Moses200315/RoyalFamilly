@@ -1,12 +1,4 @@
 (function () {
-    const navigation = performance.getEntriesByType('navigation')[0];
-    const currentPage = window.location.pathname.split('/').pop();
-
-    if (navigation && navigation.type === 'reload' && currentPage !== 'dashboard.php') {
-        window.location.replace('dashboard.php');
-        return;
-    }
-
     const iconForField = (field) => {
         const name = field.name || '';
         if (name.includes('phone')) return 'bi-telephone';
@@ -37,4 +29,44 @@
         fieldGroup.insertBefore(floatingField, fieldGroup.firstChild);
         floatingField.append(icon, field, label);
     });
+
+    const bindLiveSearch = (input, items) => {
+        if (!input || !items.length) {
+            return;
+        }
+
+        const applyFilter = () => {
+            const query = input.value.trim().toLowerCase();
+            items.forEach((item) => {
+                const haystack = (item.getAttribute('data-search') || item.textContent || '').toLowerCase();
+                const matches = query === '' || haystack.includes(query);
+                item.classList.toggle('is-search-hidden', !matches);
+                if (item.tagName === 'TR') {
+                    item.style.display = matches ? '' : 'none';
+                } else {
+                    item.style.display = matches ? '' : 'none';
+                }
+            });
+        };
+
+        input.addEventListener('input', applyFilter);
+        applyFilter();
+    };
+
+    bindLiveSearch(
+        document.querySelector('[data-live-search="customers"]'),
+        document.querySelectorAll('[data-search-row="customer"]')
+    );
+    bindLiveSearch(
+        document.querySelector('[data-live-search="staff"]'),
+        document.querySelectorAll('[data-search-row="staff"]')
+    );
+    bindLiveSearch(
+        document.querySelector('[data-live-search="deliveries"]'),
+        document.querySelectorAll('[data-search-row="delivery"]')
+    );
+    bindLiveSearch(
+        document.querySelector('[data-live-search="delivered"]'),
+        document.querySelectorAll('[data-search-row="delivered"]')
+    );
 })();
