@@ -3,12 +3,12 @@
  * ============================================
  * RoyalFamily Water Delivery System
  * Database Setup Script
- * Version: 1.0
- * Description: Initialize database and create the first administrator user
+ * Version: 1.1
+ * Description: Create missing tables on an empty database and the first admin.
+ *              Never drops data and never seeds sample records onto a live database.
  * ============================================
  */
 
-// Database configuration
 define('DB_HOST', 'mysql-ad07bdc-kaayamus-d33d.f.aivencloud.com');
 define('DB_USER', 'avnadmin');
 define('DB_PASS', 'AVNS_OBNh_oT5oV-C2a7wVAz');
@@ -18,87 +18,128 @@ define('DB_PORT', 10997);
 $message = '';
 $messageType = '';
 
+function tableExists($conn, $tableName) {
+    $stmt = $conn->prepare('SELECT COUNT(*) AS total FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?');
+    $stmt->bind_param('s', $tableName);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    return $row && (int) $row['total'] > 0;
+}
+
+function applyStructureOnlySchema($conn, $schemaFile) {
+    $schema = file_get_contents($schemaFile);
+    if ($schema === false) {
+        throw new Exception('Could not read schema file.');
+    }
+
+    $statements = explode(';', $schema);
+    foreach ($statements as $statement) {
+        $statement = trim($statement);
+        if ($statement === '' || preg_match('/^--/', $statement)) {
+            continue;
+        }
+        if (stripos($statement, 'USE ') === 0 || stripos($statement, 'CREATE DATABASE') === 0) {
+            continue;
+        }
+        if (stripos($statement, 'INSERT ') === 0 || stripos($statement, 'DELETE ') === 0 || stripos($statement, 'DROP ') === 0 || stripos($statement, 'TRUNCATE ') === 0) {
+            continue;
+        }
+        if (!$conn->query($statement)) {
+            $error = $conn->error;
+            if (stripos($error, 'already exists') !== false) {
+                continue;
+            }
+            throw new Exception('Schema statement failed: ' . $error);
+        }
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        // Create connection with SSL for Aiven
         $conn = mysqli_init();
         if (!$conn) {
-            throw new Exception("mysqli_init failed");
+            throw new Exception('mysqli_init failed');
         }
-        
+
         $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
 
         if (!@$conn->real_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT, NULL, MYSQLI_CLIENT_SSL)) {
-            throw new Exception("Connection failed: " . mysqli_connect_error());
+            throw new Exception('Connection failed: ' . mysqli_connect_error());
         }
-        
-        // Read and execute schema file (Angalia majina tofauti ya faili la SQL)
+
+        $coreTables = ['users', 'customers', 'staff', 'service_records'];
+        $existingCore = [];
+        foreach ($coreTables as $tableName) {
+            if (tableExists($conn, $tableName)) {
+                $existingCore[] = $tableName;
+            }
+        }
+
         $schema_file = __DIR__ . '/database/schema.sql';
         if (!file_exists($schema_file)) {
-            $schema_file = _DIR_ . '/database.sql';
-        }
-        if (!file_exists($schema_file)) {
-            $schema_file = _DIR_ . '/schema.sql';
+            throw new Exception('Schema file not found at database/schema.sql.');
         }
 
-        if (file_exists($schema_file)) {
-            $schema = file_get_contents($schema_file);
-            
-            // Split by semicolon to get individual statements
-            $statements = explode(';', $schema);
-            
-            foreach ($statements as $statement) {
-                $statement = trim($statement);
-                if (!empty($statement) && !preg_match('/^--/', $statement)) {
-                    // Skip USE statement since we already selected the database
-                    if (stripos($statement, 'USE ') === 0) {
-                        continue;
-                    }
-                    if (stripos($statement, 'CREATE DATABASE') === 0) {
-                        continue;
-                    }
-                    if (!$conn->query($statement)) {
-                        // Ignore errors for statements that might fail due to existing data
-                        if (strpos($conn->error, 'Duplicate entry') === false) {
-                            // Ignored minor duplicate warnings
-                        }
-                    }
+        if (count($existingCore) === count($coreTables)) {
+            $userCountResult = $conn->query('SELECT COUNT(*) AS total FROM users');
+            $userCount = $userCountResult ? (int) $userCountResult->fetch_assoc()['total'] : 0;
+
+            $setup_username = trim($_POST['username'] ?? '');
+            $setup_password = $_POST['password'] ?? '';
+            $setup_full_name = trim($_POST['full_name'] ?? '');
+
+            if ($userCount > 0) {
+                throw new Exception('Database already has tables and users. Setup will not recreate or seed the database. Use the login page.');
+            }
+
+            if ($setup_username === '' || $setup_full_name === '' || strlen($setup_password) < 6) {
+                throw new Exception('Enter a full name, username, and a password of at least 6 characters.');
+            }
+
+            $check_admin = $conn->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
+            $check_admin->bind_param('s', $setup_username);
+            $check_admin->execute();
+            if ($check_admin->get_result()->num_rows === 0) {
+                $password = password_hash($setup_password, PASSWORD_DEFAULT);
+                $insert = $conn->prepare('INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)');
+                $role = 'admin';
+                $insert->bind_param('ssss', $setup_username, $password, $setup_full_name, $role);
+                if (!$insert->execute()) {
+                    throw new Exception('Error creating admin user: ' . $conn->error);
                 }
             }
-        } else {
-            throw new Exception("Schema file not found. Place database.sql or schema.sql in root or database/ directory.");
-        }
-        
-        $setup_username = trim($_POST['username'] ?? '');
-        $setup_password = $_POST['password'] ?? '';
-        $setup_full_name = trim($_POST['full_name'] ?? '');
-        if ($setup_username === '' || $setup_full_name === '' || strlen($setup_password) < 6) {
-            throw new Exception('Enter a full name, username, and a password of at least 6 characters.');
-        }
 
-        // Create the first administrator only from credentials entered during setup.
-        $check_admin = $conn->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
-        $check_admin->bind_param('s', $setup_username);
-        $check_admin->execute();
-        $check_admin_result = $check_admin->get_result();
-        if ($check_admin_result->num_rows === 0) {
+            $message = 'Administrator created. Existing customers, staff, and deliveries were not changed.';
+            $messageType = 'success';
+        } elseif (!empty($existingCore)) {
+            throw new Exception('Database already contains some tables (' . implode(', ', $existingCore) . '). Setup will not drop or rebuild them.');
+        } else {
+            applyStructureOnlySchema($conn, $schema_file);
+
+            $setup_username = trim($_POST['username'] ?? '');
+            $setup_password = $_POST['password'] ?? '';
+            $setup_full_name = trim($_POST['full_name'] ?? '');
+            if ($setup_username === '' || $setup_full_name === '' || strlen($setup_password) < 6) {
+                throw new Exception('Enter a full name, username, and a password of at least 6 characters.');
+            }
+
             $password = password_hash($setup_password, PASSWORD_DEFAULT);
             $insert = $conn->prepare('INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)');
             $role = 'admin';
             $insert->bind_param('ssss', $setup_username, $password, $setup_full_name, $role);
             if (!$insert->execute()) {
-                throw new Exception("Error creating admin user: " . $conn->error);
+                throw new Exception('Error creating admin user: ' . $conn->error);
             }
+
+            $message = 'Empty database initialized with structure only. No sample customers or deliveries were inserted.';
+            $messageType = 'success';
         }
-        
-        $message = "Database setup completed successfully!";
-        $messageType = "success";
-        
+
         $conn->close();
-        
     } catch (Exception $e) {
-        $message = "Error: " . $e->getMessage();
-        $messageType = "danger";
+        $message = 'Error: ' . $e->getMessage();
+        $messageType = 'danger';
     }
 }
 ?>
@@ -122,9 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php echo htmlspecialchars($message); ?>
                 </div>
             <?php endif; ?>
-            
-            <p class="text-muted mb-4">Initialize the database and create the first administrator account.</p>
-            
+
+            <p class="text-muted mb-4">Creates missing tables only. This will not drop the existing database or insert sample customers.</p>
+
             <form method="POST">
                 <input class="form-control mb-2" name="full_name" placeholder="Administrator full name" required>
                 <input class="form-control mb-2" name="username" placeholder="Administrator username" required>
@@ -133,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <i class="bi bi-database-fill"></i> Setup Database
                 </button>
             </form>
-            
+
             <?php if ($messageType === 'success'): ?>
                 <div class="mt-3">
                     <a href="index.php" class="btn btn-success w-100">
