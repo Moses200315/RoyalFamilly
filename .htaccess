@@ -1,0 +1,54 @@
+# ============================================
+# RoyalFamily Water Delivery System
+# Apache Configuration File
+# Version: 1.0
+# Description: Security and URL configuration
+# ============================================
+
+# Prevent directory listing
+Options -Indexes
+
+# Protect configuration files
+<FilesMatch "^(config\.php|\.htaccess)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect sensitive directories
+<FilesMatch "\.(log|sql|bak|old)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Enable URL rewriting (if needed in future)
+# RewriteEngine On
+# RewriteCond %{REQUEST_FILENAME} !-f
+# RewriteCond %{REQUEST_FILENAME} !-d
+# RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Set default character set
+AddDefaultCharset UTF-8
+
+# Enable compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript
+</IfModule>
+
+# Set cache expiration for static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+</IfModule>
+
+# Protect against clickjacking
+Header always append X-Frame-Options SAMEORIGIN
+
+# Enable XSS protection
+Header always set X-XSS-Protection "1; mode=block"
+
+# Prevent MIME type sniffing
+Header always set X-Content-Type-Options nosniff
