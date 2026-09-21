@@ -88,33 +88,6 @@
     font-size: 17px;
 }
 
-.app-page .input-with-icon {
-    position: relative;
-}
-
-.app-page .input-with-icon .form-control,
-.app-page .input-with-icon .form-select {
-    padding-left: 44px;
-}
-
-.app-page .input-with-icon label {
-    padding-left: 44px;
-}
-
-.app-page .input-with-icon .input-icon {
-    position: absolute;
-    top: 50%;
-    left: 16px;
-    z-index: 2;
-    color: var(--rf-primary);
-    pointer-events: none;
-    transform: translateY(-50%);
-}
-
-.app-page .input-with-icon:focus-within .input-icon {
-    color: var(--rf-primary-dark);
-}
-
 .app-page .container {
     max-width: 1440px;
 }
@@ -455,10 +428,6 @@ html {
 .app-page .form-select:focus {
     border-color: var(--rf-blue) !important;
     box-shadow: 0 0 0 4px rgba(40, 100, 215, .11) !important;
-}
-
-.app-page .input-with-icon .input-icon {
-    color: var(--rf-teal);
 }
 
 .app-page .table-responsive {

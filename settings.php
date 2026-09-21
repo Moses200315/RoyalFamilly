@@ -91,7 +91,6 @@ $language = currentLanguage();
                     <li class="nav-item"><a class="nav-link" href="staff.php">Staff</a></li>
                     <li class="nav-item"><a class="nav-link" href="deliveries.php">Deliveries</a></li>
                     <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
-                    <?php if (isAdministrator()): ?><li class="nav-item"><a class="nav-link" href="users.php">Users</a></li><?php endif; ?>
                 </ul>
                 <a href="settings.php" class="nav-link active settings-link me-2" aria-label="Settings" title="Settings">
                     <i class="bi bi-gear-fill"></i>
@@ -123,30 +122,26 @@ $language = currentLanguage();
                         <form method="POST">
                             <div class="row g-3">
                                 <div class="col-md-6">
-                                    <div class="form-floating input-with-icon">
-                                        <i class="bi bi-person-badge input-icon"></i>
+                                    <div class="form-floating">
                                         <input type="text" class="form-control" id="full_name" name="full_name" placeholder="<?php echo t('full_name'); ?>" value="<?php echo htmlspecialchars($user['full_name']); ?>" required>
                                         <label for="full_name"><?php echo t('full_name'); ?></label>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="form-floating input-with-icon">
-                                        <i class="bi bi-person input-icon"></i>
+                                    <div class="form-floating">
                                         <input type="text" class="form-control" id="username" name="username" placeholder="<?php echo t('username'); ?>" value="<?php echo htmlspecialchars($user['username']); ?>" required>
                                         <label for="username"><?php echo t('username'); ?></label>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="form-floating input-with-icon">
-                                        <i class="bi bi-lock input-icon"></i>
+                                    <div class="form-floating">
                                         <input type="password" class="form-control" id="password" name="password" placeholder="<?php echo t('new_password'); ?>" autocomplete="new-password">
                                         <label for="password"><?php echo t('new_password'); ?></label>
                                     </div>
                                     <small class="text-muted"><?php echo t('leave_blank_password'); ?></small>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="form-floating input-with-icon">
-                                        <i class="bi bi-translate input-icon"></i>
+                                    <div class="form-floating">
                                         <select class="form-select" id="language" name="language">
                                             <option value="en" <?php echo $language === 'en' ? 'selected' : ''; ?>>English</option>
                                             <option value="sw" <?php echo $language === 'sw' ? 'selected' : ''; ?>>Kiswahili</option>

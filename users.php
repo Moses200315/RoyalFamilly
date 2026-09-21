@@ -95,7 +95,6 @@ if ($result) {
             <div class="navbar-nav me-auto">
                 <a class="nav-link" href="dashboard.php">Dashboard</a>
                 <a class="nav-link" href="settings.php">Settings</a>
-                <a class="nav-link active" href="users.php">Users</a>
             </div>
             <span class="navbar-text me-3"><i class="bi bi-person-circle"></i> <?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
             <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right"></i> Logout</a>
