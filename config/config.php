@@ -41,6 +41,16 @@ function ensureUserLanguageColumn($conn) {
     }
 }
 
+function ensureSystemAdministratorRole($conn) {
+    $column = $conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+    if ($column && $column->num_rows > 0) {
+        $definition = $column->fetch_assoc();
+        if (strpos((string) ($definition['Type'] ?? ''), "'system_administrator'") === false) {
+            $conn->query("ALTER TABLE users MODIFY COLUMN role ENUM('admin', 'system_administrator') NOT NULL DEFAULT 'admin'");
+        }
+    }
+}
+
 function ensureNextDueOverrideColumn($conn) {
     $column = $conn->query("SHOW COLUMNS FROM service_records LIKE 'next_due_date_override'");
     if ($column && $column->num_rows === 0) {
@@ -69,6 +79,7 @@ function ensureDeliveryTypeColumn($conn) {
  */
 $mysqli = getDbConnection();
 ensureUserLanguageColumn($mysqli);
+ensureSystemAdministratorRole($mysqli);
 ensureNextDueOverrideColumn($mysqli);
 ensureServiceIntervalDaysColumn($mysqli);
 ensureDeliveryTypeColumn($mysqli);

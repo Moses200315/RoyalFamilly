@@ -177,6 +177,8 @@ if ($monitoring_result) {
 // Count due today and overdue
 $due_today_count = count($due_today);
 $overdue_count = count($overdue);
+$next_midnight = new DateTime('tomorrow', new DateTimeZone(date_default_timezone_get()));
+$midnight_refresh_delay = max(1000, ($next_midnight->getTimestamp() - time()) * 1000);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -472,6 +474,7 @@ $overdue_count = count($overdue);
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="reports.php">Reports</a>
+                        <?php if (isAdministrator()): ?><a class="nav-link" href="users.php">Users</a><?php endif; ?>
                     </li>
                 </ul>
                 <a href="settings.php" class="nav-link settings-link me-2" aria-label="Settings" title="Settings">
@@ -838,7 +841,12 @@ $overdue_count = count($overdue);
 
         updateLastUpdated();
 
-        // Auto-refresh dashboard every 5 minutes
+        // Refresh at the next midnight in the server-configured timezone.
+        setTimeout(function() {
+            window.location.reload();
+        }, <?php echo (int) $midnight_refresh_delay; ?>);
+
+        // Keep the dashboard responsive to same-day delivery changes as before.
         setTimeout(function() {
             window.location.reload();
         }, 300000);

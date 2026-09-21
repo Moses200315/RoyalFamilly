@@ -319,6 +319,7 @@ if ($preselectedCustomerId > 0) {
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="reports.php">Reports</a>
+                        <?php if (isAdministrator()): ?><a class="nav-link" href="users.php">Users</a><?php endif; ?>
                     </li>
                 </ul>
                 <a href="settings.php" class="nav-link settings-link me-2" aria-label="Settings" title="Settings">

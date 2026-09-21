@@ -494,6 +494,7 @@ if ($report_type === 'next_due') {
                     </li>
                     <li class="nav-item">
                         <a class="nav-link active" href="reports.php">Reports</a>
+                        <?php if (isAdministrator()): ?><a class="nav-link" href="users.php">Users</a><?php endif; ?>
                     </li>
                 </ul>
                 <a href="settings.php" class="nav-link settings-link me-2" aria-label="Settings" title="Settings">
@@ -655,6 +656,9 @@ if ($report_type === 'next_due') {
                         </button>
                         <a href="generate_pdf.php?start_date=<?php echo htmlspecialchars($start_date); ?>&end_date=<?php echo htmlspecialchars($end_date); ?>&report_type=<?php echo htmlspecialchars($report_type); ?>" class="btn btn-success btn-sm ms-2">
                             <i class="bi bi-file-earmark-pdf-fill me-1"></i> Download PDF
+                        </a>
+                        <a href="export_sales.php?start_date=<?php echo rawurlencode($start_date); ?>&end_date=<?php echo rawurlencode($end_date); ?>&customer_id=<?php echo (int) $customer_id; ?>" class="btn btn-outline-success btn-sm ms-2">
+                            <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Export Excel
                         </a>
                     </div>
                 </div>

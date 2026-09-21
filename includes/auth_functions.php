@@ -30,6 +30,27 @@ function isLoggedIn() {
     return isset($_SESSION['user_id']) && isset($_SESSION['username']);
 }
 
+function isSystemAdministrator() {
+    return isLoggedIn() && ($_SESSION['role'] ?? '') === 'system_administrator';
+}
+
+function isAdministrator() {
+    return isLoggedIn() && in_array($_SESSION['role'] ?? '', ['admin', 'system_administrator'], true);
+}
+
+function requireAdministrator() {
+    requireLogin();
+    checkSessionTimeout();
+    if (!isAdministrator()) {
+        http_response_code(403);
+        exit('Access denied.');
+    }
+}
+
+function requireSystemAdministrator() {
+    requireAdministrator();
+}
+
 /**
  * Attempt user login
  * Validates credentials and creates session if successful

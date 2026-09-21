@@ -91,6 +91,7 @@ $language = currentLanguage();
                     <li class="nav-item"><a class="nav-link" href="staff.php">Staff</a></li>
                     <li class="nav-item"><a class="nav-link" href="deliveries.php">Deliveries</a></li>
                     <li class="nav-item"><a class="nav-link" href="reports.php">Reports</a></li>
+                    <?php if (isAdministrator()): ?><li class="nav-item"><a class="nav-link" href="users.php">Users</a></li><?php endif; ?>
                 </ul>
                 <a href="settings.php" class="nav-link active settings-link me-2" aria-label="Settings" title="Settings">
                     <i class="bi bi-gear-fill"></i>
