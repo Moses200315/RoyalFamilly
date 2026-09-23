@@ -30,23 +30,33 @@
         floatingField.append(icon, field, label);
     });
 
-    const bindLiveSearch = (input, items) => {
+    const bindLiveSearch = (input, items, options = {}) => {
         if (!input || !items.length) {
             return;
         }
 
+        const emptyState = options.emptyStateSelector
+            ? input.closest('.card')?.querySelector(options.emptyStateSelector)
+            : null;
+
         const applyFilter = () => {
             const query = input.value.trim().toLowerCase();
+            let visibleCount = 0;
+
             items.forEach((item) => {
                 const haystack = (item.getAttribute('data-search') || item.textContent || '').toLowerCase();
                 const matches = query === '' || haystack.includes(query);
                 item.classList.toggle('is-search-hidden', !matches);
-                if (item.tagName === 'TR') {
-                    item.style.display = matches ? '' : 'none';
-                } else {
-                    item.style.display = matches ? '' : 'none';
+                item.style.display = matches ? '' : 'none';
+
+                if (matches) {
+                    visibleCount += 1;
                 }
             });
+
+            if (emptyState) {
+                emptyState.style.display = visibleCount === 0 ? 'block' : 'none';
+            }
         };
 
         input.addEventListener('input', applyFilter);
@@ -67,6 +77,7 @@
     );
     bindLiveSearch(
         document.querySelector('[data-live-search="delivered"]'),
-        document.querySelectorAll('[data-search-row="delivered"]')
+        document.querySelectorAll('[data-search-row="delivered"]'),
+        { emptyStateSelector: '.empty-state' }
     );
 })();

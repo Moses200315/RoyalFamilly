@@ -818,19 +818,30 @@ $midnight_refresh_delay = max(1000, ($next_midnight->getTimestamp() - time()) * 
     <script>
         const filterButtons = document.querySelectorAll('.filter-chip');
         const customerItems = document.querySelectorAll('.customer-item');
+        const deliveredSearch = document.querySelector('[data-live-search="delivered"]');
+
+        const applyDashboardFilters = () => {
+            const selectedFilter = document.querySelector('.filter-chip.active')?.dataset.filter || 'all';
+            const searchQuery = (deliveredSearch?.value || '').trim().toLowerCase();
+
+            customerItems.forEach(item => {
+                const statusMatches = selectedFilter === 'all' || item.dataset.status === selectedFilter;
+                const searchMatches = !searchQuery || (item.dataset.search || item.textContent || '').toLowerCase().includes(searchQuery);
+                const matches = statusMatches && searchMatches;
+                item.style.display = matches ? 'block' : 'none';
+            });
+        };
 
         filterButtons.forEach(button => {
             button.addEventListener('click', function () {
-                const selectedFilter = this.dataset.filter;
-
                 filterButtons.forEach(btn => btn.classList.toggle('active', btn === this));
-
-                customerItems.forEach(item => {
-                    const matches = selectedFilter === 'all' || item.dataset.status === selectedFilter;
-                    item.style.display = matches ? 'block' : 'none';
-                });
+                applyDashboardFilters();
             });
         });
+
+        if (deliveredSearch) {
+            deliveredSearch.addEventListener('input', applyDashboardFilters);
+        }
 
         function updateLastUpdated() {
             const now = new Date();
