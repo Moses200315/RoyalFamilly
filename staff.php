@@ -269,7 +269,7 @@ if ($result) {
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand" href="dashboard.php">
-                <img class="navbar-brand-logo" src="assets/images/royal-family-logo.jpg" alt="Royal Family">
+                <img class="navbar-brand-logo" src="assets/images/royal-family-logo.jpg" alt="Royal Family" width="28" height="28" style="display:block;width:28px;height:28px;max-width:28px;max-height:28px;object-fit:cover;">
                 RoyalFamily
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
