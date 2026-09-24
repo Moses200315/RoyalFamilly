@@ -124,12 +124,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: 400px;
             max-width: calc(100% - 32px);
             padding: 45px 40px;
-            border: 1px solid rgba(255, 255, 255, .28);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, .35);
             border-radius: 25px;
-            background: rgba(15, 23, 42, .58);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 30px 80px rgba(0, 0, 0, .45);
+            background: linear-gradient(135deg, rgba(255, 255, 255, .2), rgba(15, 23, 42, .55));
+            backdrop-filter: blur(24px) saturate(125%);
+            -webkit-backdrop-filter: blur(24px) saturate(125%);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 30px 80px rgba(0, 0, 0, .45);
             animation: loginEnter 1s cubic-bezier(.17, .67, .3, 1.3);
         }
 
@@ -172,10 +173,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .login-field input {
             width: 100%;
             padding: 16px 18px;
-            border: 1px solid rgba(255, 255, 255, .15);
+            border: 1px solid rgba(255, 255, 255, .28);
             border-radius: 12px;
             outline: none;
-            background: rgba(0, 0, 0, .2);
+            background: rgba(0, 0, 0, .25);
             color: white;
             font-size: 14px;
             transition: .3s;
@@ -206,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             left: 12px;
             padding: 0 7px;
             border-radius: 5px;
-            background: #171c35;
+            background: rgba(15, 23, 42, .85);
             color: #a78bfa;
             font-size: 12px;
         }
