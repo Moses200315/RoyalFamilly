@@ -453,7 +453,8 @@ $midnight_refresh_delay = max(1000, ($next_midnight->getTimestamp() - time()) * 
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand" href="dashboard.php">
-                <i class="bi bi-droplet-fill"></i> RoyalFamily
+                <img class="navbar-brand-logo" src="assets/images/royal-family-logo.jpg" alt="Royal Family">
+                RoyalFamily
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>

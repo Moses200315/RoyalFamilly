@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             min-height: 100vh;
             margin: 0;
             overflow: hidden;
-            background: #080b1a;
+            background: #111827;
             font-family: "Poppins", "Segoe UI", Tahoma, sans-serif;
         }
 
@@ -73,9 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             position: relative;
             overflow: hidden;
             background:
-                radial-gradient(circle at 20% 20%, rgba(108, 60, 255, .33), transparent 30%),
-                radial-gradient(circle at 80% 80%, rgba(0, 212, 255, .27), transparent 30%),
-                linear-gradient(135deg, #080b1a, #111936);
+                linear-gradient(90deg, rgba(11, 18, 32, .72), rgba(11, 18, 32, .2)),
+                url("assets/images/royal-family-logo.jpg") center / cover no-repeat;
         }
 
         .login-orb {
@@ -142,21 +141,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .login-logo {
             width: 70px;
             height: 70px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             margin: 0 auto 20px;
-            border-radius: 20px;
-            color: white;
-            font-size: 30px;
-            background: linear-gradient(135deg, #7c3cff, #00d9ff);
-            box-shadow: 0 0 30px rgba(124, 60, 255, .4);
-            animation: loginLogoPulse 3s infinite;
-        }
-
-        @keyframes loginLogoPulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(124, 60, 255, .4); }
-            50% { box-shadow: 0 0 45px rgba(0, 217, 255, .53); }
+            display: block;
+            object-fit: cover;
+            border: 3px solid #e4b63d;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
         }
 
         .login-box h1 {
@@ -307,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="login-orb"></div>
 
         <section class="login-box" aria-labelledby="login-title">
-            <div class="login-logo" aria-hidden="true">✦</div>
+            <img class="login-logo" src="assets/images/royal-family-logo.jpg" alt="Royal Family Pure Drinking Water">
             <h1 id="login-title"><?php echo currentLanguage() === 'sw' ? 'Karibu' : 'Welcome'; ?></h1>
             <p class="login-subtitle"><?php echo currentLanguage() === 'sw' ? 'Ingia kwenye akaunti yako' : 'Sign in to your account'; ?></p>
 

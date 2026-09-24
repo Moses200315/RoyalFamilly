@@ -36,15 +36,15 @@
     color: var(--rf-primary) !important;
 }
 
-.app-page .navbar-brand i {
-    display: grid;
-    width: 34px;
-    height: 34px;
-    place-items: center;
-    color: white;
-    border-radius: 10px;
-    background: linear-gradient(135deg, var(--rf-primary), #6381ed);
-    box-shadow: 0 7px 16px rgba(49, 85, 217, 0.25);
+.app-page .navbar-brand-logo {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    object-fit: cover;
+    border: 2px solid #e4b63d;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 7px 16px rgba(24, 39, 75, 0.16);
 }
 
 .app-page .navbar-nav {
