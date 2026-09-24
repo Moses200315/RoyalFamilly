@@ -37,14 +37,14 @@
 }
 
 .app-page .navbar-brand-logo {
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
     object-fit: cover;
-    border: 2px solid #e4b63d;
+    border: 1px solid #e4b63d;
     border-radius: 50%;
     background: #fff;
-    box-shadow: 0 7px 16px rgba(24, 39, 75, 0.16);
+    box-shadow: 0 4px 10px rgba(24, 39, 75, 0.14);
 }
 
 .app-page .navbar-nav {
