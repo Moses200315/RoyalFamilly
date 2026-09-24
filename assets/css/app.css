@@ -36,10 +36,13 @@
     color: var(--rf-primary) !important;
 }
 
-.app-page .navbar-brand-logo {
-    width: 30px;
-    height: 30px;
-    flex: 0 0 30px;
+.app-page .navbar .navbar-brand-logo {
+    display: block;
+    width: 28px !important;
+    height: 28px !important;
+    max-width: 28px !important;
+    max-height: 28px !important;
+    flex: 0 0 28px;
     object-fit: cover;
     border: 1px solid #e4b63d;
     border-radius: 50%;
