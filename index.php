@@ -124,11 +124,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: 400px;
             max-width: calc(100% - 32px);
             padding: 45px 40px;
-            border: 1px solid rgba(255, 255, 255, .15);
+            border: 1px solid rgba(255, 255, 255, .28);
             border-radius: 25px;
-            background: rgba(255, 255, 255, .08);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: rgba(15, 23, 42, .58);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             box-shadow: 0 30px 80px rgba(0, 0, 0, .45);
             animation: loginEnter 1s cubic-bezier(.17, .67, .3, 1.3);
         }
